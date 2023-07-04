@@ -1,0 +1,25 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.4.33213.308
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{9A19103F-16F7-4668-BE54-9A1E7A4F7556}") = "MetratecDevices", "MetratecDevices.csproj", "{284A21CD-3843-421C-B2EB-8FE77489A814}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{284A21CD-3843-421C-B2EB-8FE77489A814}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{284A21CD-3843-421C-B2EB-8FE77489A814}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{284A21CD-3843-421C-B2EB-8FE77489A814}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{284A21CD-3843-421C-B2EB-8FE77489A814}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {D71FB60C-C4A5-45A5-8723-0299AAA28FE9}
+	EndGlobalSection
+EndGlobal

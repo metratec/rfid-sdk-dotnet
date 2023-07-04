@@ -1,0 +1,108 @@
+# Readme
+
+Metratec Devices library for .net 6.0 (core)
+
+## Installation
+
+This library also requires the CommunicationInterfaces library. For the usb communication the FTD2XX_NET library and for the serial connection the System.IO.Ports package.
+
+To add the required libraries, you can do this via the Visual Studio UI: Right-click on `Dependencies->Add Project Reference->Browse` and select the external `MetratecDevices.dll`, the `CommunicationInterfaces.dll`.
+For the serial connection add the required package `System.IO.Ports` via the Visual Studio UI. Right-click on `Dependencies->Manage NuGet Packages` and locate and install the `System.IO.Ports` package.
+
+This library uses the Microsoft Logging System, for which at least the `Microsoft.Extensions.Logging.Abstraction` package is necessary. Add this package as well.
+
+Or you can alternatively edit your `.csproj` file:
+
+```xml
+<ItemGroup>
+  <Reference Include="MetratecDevices, Version=3.0.0.0">
+    <HintPath>path\to\MetratecDevices.dll</HintPath>
+  </Reference>
+  <!-- For serial connection -->
+  <PackageReference Include="System.IO.Ports" Version="7.0.0" />
+  <!-- For logging -->
+  <PackageReference Include="Microsoft.Extensions.Logging.Abstraction" Version="7.0.0" />
+</ItemGroup>
+```
+
+## Usage
+
+```cs
+using MetraTecDevices;
+
+namespace Tests
+{
+  class Program
+  {
+    static void Main(string[] args)
+    {
+      try
+      {
+        // Create a DeskID iso device object
+        DeskID_ISO deskid = new DeskID_ISO("COM6");
+        // add a reader status listener
+        reader.StatusChanged += (s, e) => Console.WriteLine($"Reader status changed to {e.Message} ({e.Status})");
+        // add an inventory listener
+        reader.NewInventory += (s, e) =>
+        {
+            Console.WriteLine($"New inventory event! {e.Tags.Count} Tag(s) found");
+            foreach (HfTag tag in e.Tags)
+            {
+                Console.WriteLine($" {tag.TID}");
+            }
+        };
+        // connect the reader with timeout
+        try
+        {
+            reader.Connect(2000);
+        }
+        catch (TimeoutException)
+        {
+            Console.WriteLine($"Can not connect to reader. Program exits");
+            return;
+        }
+        // fetches the current inventory - if an inventory listener exists, this method also triggers the listener
+        List<HfTag> tags = reader.GetInventory();
+        Console.WriteLine($"Current inventory: {tags.Count} Tag(s) found");
+        foreach (HfTag tag in tags)
+        {
+            Console.WriteLine($" {tag.TID}");
+        }
+
+        reader.StartInventory();
+        Console.WriteLine("Continuous inventory scan started - Press any key to stop");
+        Console.ReadKey();
+        reader.StopInventory();
+        // Disconnect reader
+        reader.Disconnect();
+      }
+      catch (Exception e)
+      {
+        Console.WriteLine(e.ToString());
+      }
+    }
+  }
+}
+```
+
+## Build
+
+To build this library run the following command in the console:
+
+```bash
+dotnet build
+```
+
+To build a release run following command:
+
+```bash
+dotnet publish -c Release
+```
+
+## License
+
+MIT License
+
+## Project status
+
+Under construction
