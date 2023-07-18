@@ -1,12 +1,12 @@
-# Readme
+# Metratec Device SDK
 
-Metratec Devices library for .net 6.0 (core)
+Metratec Devices SDK for .net 6.0 (core)
 
-## Installation
+## Install the library
 
-This library also requires the CommunicationInterfaces library. For the usb communication the FTD2XX_NET library and for the serial connection the System.IO.Ports package.
+This library also requires for the serial connection the System.IO.Ports package.
 
-To add the required libraries, you can do this via the Visual Studio UI: Right-click on `Dependencies->Add Project Reference->Browse` and select the external `MetratecDevices.dll`, the `CommunicationInterfaces.dll`.
+To add the required libraries, you can do this via the Visual Studio UI: Right-click on `Dependencies->Add Project Reference->Browse` and select the external `MetratecDevices.dll`.
 For the serial connection add the required package `System.IO.Ports` via the Visual Studio UI. Right-click on `Dependencies->Manage NuGet Packages` and locate and install the `System.IO.Ports` package.
 
 This library uses the Microsoft Logging System, for which at least the `Microsoft.Extensions.Logging.Abstraction` package is necessary. Add this package as well.
@@ -85,24 +85,6 @@ namespace Tests
 }
 ```
 
-## Build
-
-To build this library run the following command in the console:
-
-```bash
-dotnet build
-```
-
-To build a release run following command:
-
-```bash
-dotnet publish -c Release
-```
-
 ## License
 
 MIT License
-
-## Project status
-
-Under construction
