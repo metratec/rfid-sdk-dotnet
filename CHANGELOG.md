@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.1.1
+
+* uhf gen2 inventory settings updated (FastStart added)
+
 ## 3.1.0
 
 * Pulsar LR special commands added (SetRfMode, SetCustomImpinjSettings, CallImpinjAuthenticationService, SetSession)

@@ -77,7 +77,8 @@ namespace MetraTecDevices
         return _inventorySettings;
       }
       string[] split = SplitLine(GetCommand("AT+INVS?")); // +INVS: 0,0,0
-      _inventorySettings = new InventorySettings(split[0] == "1", split[1] == "1", split[2] == "1");
+      _inventorySettings = new InventorySettings(split[0] == "1", split[1] == "1",
+                                                 split[2] == "1", split[3] == "1");
       return _inventorySettings;
     }
     /// <summary>
@@ -86,7 +87,8 @@ namespace MetraTecDevices
     /// <param name="settings">the inventory settings</param>
     public void SetInventorySettings(InventorySettings settings)
     {
-      SetCommand($"AT+INVS={(settings.OnlyNewTag ? "1" : "0")},{(settings.WithRssi ? "1" : "0")},{(settings.WithTid ? "1" : "0")}");
+      SetCommand($"AT+INVS={(settings.OnlyNewTag ? "1" : "0")},{(settings.WithRssi ? "1" : "0")}," +
+                 $"{(settings.WithTid ? "1" : "0")},{(settings.FastStart ? "1" : "0")}");
       _inventorySettings = settings;
     }
     /// <summary>
@@ -719,7 +721,7 @@ namespace MetraTecDevices
       return ParseWriteResponse(resp, 6, DateTime.Now);
     }
     /// <summary>
-    /// This command tags to an Impinj M775 tag using the proprietory authencation command.
+    /// This command tags to an Impinj M775 tag using the proprietary authentication command.
     /// It sends a random challenge to the transponder and gets the authentication payload in return.
     /// You can use this to check the authenticity of the transponder with Impinj Authentication Service.
     /// For further details, please contact Impinj directly.
@@ -764,7 +766,7 @@ namespace MetraTecDevices
       SetCommand($"AT+SES={sessionId}");
     }
     /// <summary>
-    /// Returns the current selected session. See SetRfMode for more details.
+    /// Returns the current rf mode. See SetRfMode for more details.
     /// </summary>
     /// <returns>the current selected session</returns>
     public string GetRfMode()
@@ -853,21 +855,27 @@ namespace MetraTecDevices
     /// <value>if true, the tid of each tag is reported</value>
     public bool WithTid { get; set; }
     /// <summary>
+    /// Enable for do an inventory without putting all tags into session state
+    /// </summary>
+    public bool FastStart { get; set; }
+    /// <summary>
     /// Create the inventory settings
     /// </summary>
     /// <returns></returns>  
-    public InventorySettings() : this(false, false, false) { }
+    public InventorySettings() : this(false, false, false, false) { }
     /// <summary>
     /// Create the inventory settings with the given parameters
     /// </summary>
     /// <param name="onlyNewTags">if true, only new tags are reported</param>
     /// <param name="withRssi">if true, the Received Signal Strength Indication of each tag is reported</param>
     /// <param name="withTid">if true, the tid of each tag is reported</param>
-    public InventorySettings(bool onlyNewTags, bool withRssi, bool withTid)
+    /// <param name="fastStart">if true, an inventory without putting all tags into session state</param>
+    public InventorySettings(bool onlyNewTags, bool withRssi, bool withTid, bool fastStart)
     {
       this.OnlyNewTag = onlyNewTags;
       this.WithRssi = withRssi;
       this.WithTid = withTid;
+      this.FastStart = fastStart;
     }
   }
   /// <summary>
@@ -1054,7 +1062,7 @@ namespace MetraTecDevices
     /// <returns></returns>  
     public CustomImpinjSettings() : this(false, false) { }
     /// <summary>
-    /// Create the inventory report settings with the given parameters
+    ///  Create the custom impinj settings with the given parameters
     /// </summary>
     /// <param name="fastId">True to allows to read the TagID together with the EPC and can speed up getting TID data</param>
     /// <param name="tagFocus">True to uses a proprietary tag feature where each tag only answers once until it is repowered</param>
