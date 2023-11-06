@@ -380,7 +380,8 @@ namespace MetraTecDevices
           {
             tag.RSSI = int.Parse(split[_inventorySettings.WithTid ? 2 : 1]);
           }
-          if (isReport){
+          if (isReport)
+          {
             tag.SeenCount = int.Parse(split[^1]);
           }
           tags.Add(tag);
@@ -717,6 +718,91 @@ namespace MetraTecDevices
       // +PWD: ABCD01237654321001234567,ACCESS ERROR<CR><LF>
       return ParseWriteResponse(resp, 6, DateTime.Now);
     }
+    /// <summary>
+    /// This command tags to an Impinj M775 tag using the proprietory authencation command.
+    /// It sends a random challenge to the transponder and gets the authentication payload in return.
+    /// You can use this to check the authenticity of the transponder with Impinj Authentication Service.
+    /// For further details, please contact Impinj directly.
+    /// </summary>
+    /// <returns>a list with the authentication responses</returns>
+    public List<UhfTagAuth> CallImpinjAuthenticationService()
+    {
+      string[] responses = SplitResponse(GetCommand("AT+IAS"));
+      List<UhfTagAuth> tags = new();
+      foreach (string response in responses)
+      {
+        string[] split = SplitLine(response[6..]);
+        if (split[1] == "OK")
+        {
+          tags.Add(new UhfTagAuth(split[0], split[2], split[3], split[4]));
+        }
+        else
+        {
+          tags.Add(new UhfTagAuth(split[0], split[1]));
+        }
+      }
+      return tags;
+    }
+    /// <summary>
+    /// Returns the current selected session. See SetSession for more details.
+    /// </summary>
+    /// <returns>the current selected session</returns>
+    public string GetSession()
+    {
+      string response = GetCommand("AT+SES?");
+      return response[6..];
+    }
+    /// <summary>
+    /// Manually select the session according to the EPC Gen 2 Protocol to use during inventory scan.
+    /// Default value is "auto" and in most cases this should stay auto.
+    /// Only change this if you absolutely know what you are doing and if you can control the types of tags you scan.
+    /// Otherwise, unexpected results during inventory scans with "only new tags" active might happen.
+    /// </summary>
+    /// <param name="sessionId">Session to set ["0", "1", "2", "3", "AUTO"]</param>
+    public void SetSession(string sessionId)
+    {
+      SetCommand($"AT+SES={sessionId}");
+    }
+    /// <summary>
+    /// Returns the current selected session. See SetRfMode for more details.
+    /// </summary>
+    /// <returns>the current selected session</returns>
+    public string GetRfMode()
+    {
+      string response = GetCommand("AT+RFM?");
+      return response[6..];
+    }
+    /// <summary>
+    /// Configure the internal RF communication settings between tag and reader. Each mode ID corresponds
+    /// to a set of RF parameters that fit together. Not all devices support all modes and not all modes can
+    /// be access in all regions.
+    /// See reader description for more detail.
+    /// </summary>
+    /// <param name="modeId">mode id</param>
+    public void SetRfMode(string modeId)
+    {
+      SetCommand($"AT+RFM={modeId}");
+    }
+    /// <summary>
+    /// The RFID tag IC manufacturer Impinj has added two custom features to its tag ICs 
+    /// that are not compatible with tag ICs from other manufacturers. Activate these features with this command.
+    /// But make sure that you only use tags with Impinj ICs like Monza6 or M7xx or M8xx series.
+    /// Tags from other manufacturers will most likely not answer at all when those options are active!
+    /// </summary>
+    /// <param name="settings">the settings</param>
+    public void SetCustomImpinjSettings(CustomImpinjSettings settings)
+    {
+      SetCommand($"AT+ICS={(settings.FastId ? "1" : "0")},{(settings.TagFocus ? "1" : "0")}");
+    }
+    /// <summary>
+    /// Gets the current custom impinj settings
+    /// </summary>
+    /// <returns>the setting</returns>
+    public CustomImpinjSettings GetCustomImpinjSettings()
+    {
+      string[] split = SplitLine(GetCommand("AT+ICS?")[6..]);
+      return new CustomImpinjSettings(split[0] == "1", split[1] == "1");
+    }
   }
   /// <summary>
   /// Tag memory
@@ -886,6 +972,96 @@ namespace MetraTecDevices
       this.Start = start;
       this.Min = min;
       this.Max = max;
+    }
+  }
+  /// <summary>
+  /// Transponder response from the authentication service
+  /// </summary>
+  public class UhfTagAuth
+  {
+    /// <summary>
+    /// Create a new positive response
+    /// </summary>
+    /// <param name="epc">Transponder epc</param>
+    /// <param name="shortTID">The short TID</param>
+    /// <param name="response">The response</param>
+    /// <param name="challenge">The challenge</param>
+    internal UhfTagAuth(string epc, string shortTID, string response, string challenge)
+    {
+      EPC = epc;
+      HasError = false;
+      ShortTID = shortTID;
+      Response = response;
+      Challenge = challenge;
+
+    }
+    /// <summary>
+    /// Create a failure response
+    /// </summary>
+    /// <param name="epc">Transponder epc</param>
+    /// <param name="errorMessage">Error message</param>
+    internal UhfTagAuth(string epc, string errorMessage)
+    {
+      EPC = epc;
+      HasError = true;
+      Message = errorMessage;
+    }
+    /// <summary>
+    /// Transponder EPC
+    /// </summary>
+    public string EPC { get; internal set; }
+    /// <summary>
+    /// True if the tag contains error information
+    /// </summary>
+    public bool HasError { get; internal set; }
+    /// <summary>
+    /// the error message 
+    /// </summary>
+    public string? Message { get; internal set; }
+    /// <summary>
+    /// Short Transponder ID
+    /// </summary>
+    public string? ShortTID { get; internal set; }
+    /// <summary>
+    /// Transponder response
+    /// </summary>
+    public string? Response { get; internal set; }
+    /// <summary>
+    /// Challenge response
+    /// </summary>
+    public string? Challenge { get; internal set; }
+  }
+  /// <summary>
+  /// Custom impinj settings
+  /// </summary>
+  public class CustomImpinjSettings
+  {
+    /// <summary>
+    /// Allows to read the TagID together with the EPC and can speed up getting TID data.
+    /// </summary>
+    public bool FastId { get; set; }
+
+    /// <summary>
+    /// Uses a proprietary tag feature where each tag only answers once until it is repowered.
+    /// This allows to scan a high number of tags because each tag only answers once and makes
+    /// anti-collision easier for the following tags.
+    /// </summary>
+    public bool TagFocus { get; set; }
+
+    /// <summary>
+    /// Create a new instance
+    /// </summary>
+    /// <returns></returns>  
+    public CustomImpinjSettings() : this(false, false) { }
+    /// <summary>
+    /// Create the inventory report settings with the given parameters
+    /// </summary>
+    /// <param name="fastId">True to allows to read the TagID together with the EPC and can speed up getting TID data</param>
+    /// <param name="tagFocus">True to uses a proprietary tag feature where each tag only answers once until it is repowered</param>
+    public CustomImpinjSettings(bool fastId, bool tagFocus)
+    {
+      this.FastId = fastId;
+      this.TagFocus = tagFocus;
     }
   }
 }

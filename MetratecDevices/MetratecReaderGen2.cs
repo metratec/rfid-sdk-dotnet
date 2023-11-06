@@ -307,10 +307,13 @@ namespace MetraTecDevices
       FirmwareVersion = responses[0][^4..];
       FirmwareMajorVersion = int.Parse(FirmwareVersion[..2]);
       FirmwareMinorVersion = int.Parse(FirmwareVersion[2..]);
-      if(responses[1].Length > 6){
+      if (responses[1].Length > 6)
+      {
         HardwareName = responses[1][5..^5];
         HardwareVersion = responses[1][^4..];
-      } else {
+      }
+      else
+      {
         HardwareName = FirmwareName;
         HardwareVersion = "0100";
       }
@@ -473,14 +476,51 @@ namespace MetraTecDevices
       SingleAntennaInUse = false;
     }
     /// <summary>
+    /// Sets the antenna multiplex sequence. Set the order in which the antennas are activated.
+    /// </summary>
+    /// <param name="antennaSequence">the antenna sequence</param>
+    /// <exception cref="T:System.InvalidOperationException">
+    /// If the reader return an error
+    /// </exception>
+    /// <exception cref="T:System.TimeoutException">
+    /// Thrown if the reader does not responding in time
+    /// </exception>
+    /// <exception cref="T:System.ObjectDisposedException">
+    /// If the reader is not connected or the connection is lost
+    /// </exception>
+    public void SetAntennaMultiplex(List<int> antennaSequence)
+    {
+      SetCommand("AT+MUX=" + string.Join(",", antennaSequence.Select(s => $"{s}")));
+      SingleAntennaInUse = false;
+    }
+    /// <summary>
     /// Gets the number of antennas to be multiplexed
     /// </summary>
     /// <returns>the number of antennas to be multiplexed</returns>
     /// <exception cref="T:System.InvalidOperationException">
     /// If the reader return an error
     /// </exception>
-    public virtual int GetAntennaMultiplex(){
-      return int.Parse(GetCommand("AT+MUX?")[6..]);
+    public virtual List<int> GetAntennaMultiplex()
+    {
+      String[] split = SplitLine(GetCommand("AT+MUX?")[6..]);
+      List<int> sequence = new();
+      if (split.Length == 1)
+      {
+        // throw new InvalidOperationException("No multiplex sequence activated, please use 'GetAntennaMultiplex' command");
+        int antennas = int.Parse(split[0]);
+        for (int i = 1; i <= antennas; i++)
+        {
+          sequence.Add(i);
+        }
+      }
+      else
+      {
+        foreach (String value in split)
+        {
+          sequence.Add(int.Parse(value));
+        }
+      }
+      return sequence;
     }
 
     /// <summary>
@@ -507,5 +547,53 @@ namespace MetraTecDevices
       }
     }
 
+  }
+
+  /// <summary>
+  /// Class for the high on tag setting
+  /// </summary>
+  public class HighOnTagSetting
+  {
+    /// <summary>
+    /// Create a new instance
+    /// </summary>
+    /// <param name="enable">Sets to false for disable the high on tag feature</param>
+    public HighOnTagSetting(bool enable)
+    {
+      Enable = enable;
+    }
+    /// <summary>
+    /// Create a new instance
+    /// </summary>
+    /// <param name="outputPin">Output pin signaling a found tag</param>
+    public HighOnTagSetting(int outputPin)
+    {
+      Enable = true;
+      OutputPin = outputPin;
+    }
+    /// <summary>
+    /// Create a new instance
+    /// </summary>
+    /// <param name="outputPin">Output pin signaling a found tag</param>
+    /// <param name="duration">pin high duration in milliseconds</param>
+    public HighOnTagSetting(int outputPin, int duration) : this(outputPin)
+    {
+      Duration = duration;
+    }
+    /// <summary>
+    /// True if high on tag is enables
+    /// </summary>
+    /// <value>True if high on tag is enables</value>
+    public bool Enable { get; set; }
+    /// <summary>
+    /// Output pin signaling a found tag
+    /// </summary>
+    /// <value>output pin number</value>
+    public int? OutputPin { get; set; }
+    /// <summary>
+    /// Pin high duration in milliseconds
+    /// </summary>
+    /// <value>high duration in milliseconds</value>
+    public int? Duration { get; set; }
   }
 }

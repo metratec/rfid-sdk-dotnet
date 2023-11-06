@@ -44,54 +44,6 @@ namespace MetraTecDevices
     }
 
     /// <summary>
-    /// Gets the number of antennas to be multiplexed
-    /// </summary>
-    /// <returns>the number of antennas to be multiplexed</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    public override int GetAntennaMultiplex()
-    {
-      String[] split = SplitLine(GetCommand("AT+MUX?")[6..]);
-      if (split.Length > 1)
-      {
-        throw new InvalidOperationException("A multiplex sequence is activated, please use 'getAntennaMultiplexSequence' command");
-      }
-      return int.Parse(split[0]);
-    }
-    /// <summary>
-    /// Gets the multiplex antenna sequence
-    /// </summary>
-    /// <returns>List with the antenna sequence</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    public List<int> GetAntennaMultiplexSequence()
-    {
-      String[] split = SplitLine(GetCommand("AT+MUX?")[6..]);
-      if (split.Length == 1)
-      {
-        throw new InvalidOperationException("No multiplex sequence activated, please use 'GetAntennaMultiplex' command");
-      }
-      List<int> sequence = new();
-      foreach (String value in split)
-      {
-        sequence.Add(int.Parse(value));
-      }
-      return sequence;
-    }
-    /// <summary>
-    /// Sets the multiplex antenna sequence
-    /// </summary>
-    /// <param name="sequence">the antenna sequence</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    public void SetAntennaMultiplexSequence(List<int> sequence)
-    {
-      SetCommand("AT+MUX=" + string.Join(",", sequence.Select(s => $"{s}")));
-    }
-    /// <summary>
     /// the power value per antenna (index 0 == antenna 1)
     /// </summary>
     /// <returns>List with the power values</returns>
@@ -234,6 +186,66 @@ namespace MetraTecDevices
       // update antennas power values
       GetCurrentAntennaPowers();
     }
+    /// <summary>
+    /// Enable the "high on tag" feature which triggers the selected output to go to the "high" state,
+    /// when a tag is found. This allows to trigger an external device whenever a tag is in the field.
+    /// This corresponds to the blue LED.
+    /// </summary>
+    /// <param name="settings">the high on tag parameter</param>
+    /// <exception cref="T:System.InvalidOperationException">
+    /// If the reader return an error
+    /// </exception>
+    /// <exception cref="T:System.TimeoutException">
+    /// Thrown if the reader does not responding in time
+    /// </exception>
+    /// <exception cref="T:System.ObjectDisposedException">
+    /// If the reader is not connected or the connection is lost
+    /// </exception>
+    public void SetHighOnTag(HighOnTagSetting settings)
+    {
+      if (settings.Enable)
+      {
+        if (null != settings.Duration)
+        {
+          SetCommand($"AT+HOT={settings.OutputPin},{settings.Duration}");
+        }
+        else
+        {
+          SetCommand($"AT+HOT={settings.OutputPin}");
+        }
+      }
+      else
+      {
+        SetCommand("AT+HOT=0");
+      }
+    }
+    /// <summary>
+    /// Gets the current high on tag feature setting
+    /// </summary>
+    /// <returns>the current high on tag setting</returns>
+    /// <exception cref="T:System.InvalidOperationException">
+    /// If the reader return an error
+    /// </exception>
+    /// <exception cref="T:System.TimeoutException">
+    /// Thrown if the reader does not responding in time
+    /// </exception>
+    /// <exception cref="T:System.ObjectDisposedException">
+    /// If the reader is not connected or the connection is lost
+    /// </exception>
+    public HighOnTagSetting GetHighOnTag()
+    {
+      String[] split = SplitLine(GetCommand("AT+HOT?")[6..]);
+      if (split[0] == "OFF")
+      {
+        return new HighOnTagSetting(false);
+      }
+      else
+      {
+        return new HighOnTagSetting(int.Parse(split[0]), int.Parse(split[1]));
+      }
+    }
     #endregion
   }
+
+
 }

@@ -6,7 +6,7 @@ namespace Examples
   {
     static void Main(string[] args)
     {
-      DeskidIsoExamples.InventoryExample();
+      // DeskidIsoExamples.InventoryExample();
       // DeskidIsoExamples.ReadWriteExample();
       // DeskidUhfExamples.InventoryExample();
       // DeskidUhfExamples.ReadWriteExample();
@@ -14,6 +14,10 @@ namespace Examples
       // PulsarMxExamples.ReadWriteExample();
       // QuasarMxExamples.InventoryExample();
       // QuasarMxExamples.ReadWriteExample();
+      PulsarLrExamples.InventoryExample();
+      // PulsarLrExamples.ReadWriteExample();
+      // PulsarLrExamples.CustomImpinjExample();
+      
     }
   }
 
