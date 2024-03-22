@@ -30,9 +30,9 @@ namespace ReaderExamples
       {
         reader.Connect(2000);
       }
-      catch (TimeoutException)
+      catch (MetratecReaderException e)
       {
-        Console.WriteLine($"Can not connect to reader. Program exits");
+        Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
         return;
       }
       // set reader power
@@ -70,9 +70,9 @@ namespace ReaderExamples
       {
         reader.Connect(2000);
       }
-      catch (TimeoutException)
+      catch (MetratecReaderException e)
       {
-        Console.WriteLine($"Can not connect to reader. Program exits");
+        Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
         return;
       }
       // set reader power
@@ -141,9 +141,9 @@ namespace ReaderExamples
       {
         reader.Connect(2000);
       }
-      catch (TimeoutException)
+      catch (MetratecReaderException e)
       {
-        Console.WriteLine($"Can not connect to reader. Program exits");
+        Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
         return;
       }
       // set reader power

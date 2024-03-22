@@ -1,6 +1,4 @@
-﻿using System;
-using System.Collections.Generic;
-using System.Linq;
+using System;
 using System.Text;
 using System.Net;
 using System.Net.Sockets;
@@ -17,7 +15,7 @@ namespace CommunicationInterfaces
     /// String variable to remember newline character
     /// </summary>
     private string _newlineString = "\u000D";
-    private readonly IPAddress _ipAddress;
+    private readonly string _address;
     private readonly int _port;
     /// <summary>
     /// The socket and network stream the reader is connected to
@@ -35,35 +33,9 @@ namespace CommunicationInterfaces
     /// <param name="port">
     /// The TCP port the reader is communicating on (default is 10,001)
     /// </param>
-    /// <exception cref="T:System.ArgumentNullException">
-    /// Thrown when the specified <paramref name="address"/>  is  <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="T:System.ArgumentException">
-    /// Thrown when the specified <paramref name="address"/> cannot be parsed into an IP address.
-    /// </exception>
-    /// <exception cref="T:System.ArgumentOutOfRangeException">
-    /// Thrown when the specified <paramref name="port"/> is outside of the range of valid TCP ports (1-65535).
-    /// </exception>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown when the socket could not be connected to the IPEndpoint (socket closed or insufficient permissions).
-    /// </exception>
     public EthernetInterface(string address, int port)
     {
-      if (address == null)
-      {
-        ArgumentNullException _exception = new(nameof(address), "Setting up IPBased connection to the device failed - no IP address given!");
-        throw _exception;
-      }
-
-      if (!IPAddress.TryParse(address, out _ipAddress!))
-      {
-        ArgumentException _exception = new("Setting up IPBased connection to the device failed (wrong IP address / TCP port given?)!");
-        throw _exception;
-      }
-      if ((port < 1) || (port > 65535))
-      {
-        throw new ArgumentOutOfRangeException("TCPPort", "The TCP Port number has to be between 1 and 65535!");
-      }
+      this._address = address;
       this._port = port;
     }
 
@@ -73,28 +45,25 @@ namespace CommunicationInterfaces
     /// <returns>A string that represents the current object.</returns>
     public override string ToString()
     {
-      return $"{_ipAddress}:{_port}";
+      return $"{_address}:{_port}";
     }
 
     /// <summary>
     /// The communication baud rate
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
+    /// <exception cref="MetratecCommunicationException">
     /// Thrown in case baud rate setting did not work
     /// </exception>
     public int BaudRate
     {
-      get => throw new InvalidOperationException("Bau rate setting not possible for Ethernet connections");
-      set => throw new InvalidOperationException("Bau rate setting not possible for Ethernet connections");
+      get => throw new MetratecCommunicationException("Bau rate setting not possible for Ethernet connections");
+      set => throw new MetratecCommunicationException("Bau rate setting not possible for Ethernet connections");
 
     }
     private int _receiveTimeout = 2000;
     /// <summary>
     /// The communication receive timeout
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown in case baud rate setting did not work
-    /// </exception>
     public int ReceiveTimeout
     {
       get => _receiveTimeout;
@@ -122,8 +91,8 @@ namespace CommunicationInterfaces
     /// <summary>
     /// Indicates whether data is available for reading
     /// </summary>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// Thrown when the underlying function reports a broken stream
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown if the connection is not established
     /// </exception>
     public bool DataAvailable
     {
@@ -135,7 +104,7 @@ namespace CommunicationInterfaces
         }
         else
         {
-          throw new ObjectDisposedException("Not connected");
+          throw new MetratecCommunicationException("Not connected");
         }
       }
     }
@@ -143,8 +112,8 @@ namespace CommunicationInterfaces
     /// <summary>
     /// The method to connect the communication interface
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown when the  serial port could not be set up (e.g. wrong parameters, insufficient permissions, invalid port state).
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the connection could not be set up (e.g. wrong parameters, insufficient permissions, invalid port state).
     /// </exception>
     public void Connect()
     {
@@ -152,7 +121,30 @@ namespace CommunicationInterfaces
       {
         return;
       }
-      IPEndPoint endPoint = new(_ipAddress!, _port);
+      if (_address == null)
+      {
+        throw new MetratecCommunicationException("Setting up IPBased connection to the device failed - no IP address given!");
+      }
+      IPAddress ipAddress;
+      if (!IPAddress.TryParse(_address, out ipAddress!))
+      {
+        // Try to resolve the host name 
+        try
+        {
+          IPHostEntry hostEntry = Dns.GetHostEntry(_address);
+          ipAddress = hostEntry.AddressList[0];
+        }
+        catch (Exception)
+        {
+          throw new MetratecCommunicationException("Setting up IPBased connection to the device failed wrong address given?!");
+        }
+      }
+      if ((_port < 1) || (_port > 65535))
+      {
+        throw new MetratecCommunicationException("The TCP Port number has to be between 1 and 65535!");
+      }
+
+      IPEndPoint endPoint = new(ipAddress, _port);
       _clientSocket = new Socket(endPoint.AddressFamily, SocketType.Stream, ProtocolType.Tcp);
       try
       {
@@ -160,7 +152,7 @@ namespace CommunicationInterfaces
       }
       catch (Exception exc)
       {
-        throw new InvalidOperationException("Connecting to the remote device failed!", exc);
+        throw new MetratecCommunicationException("Connecting to the remote device failed!", exc);
       }
       //Check if socket is connected
       if (_clientSocket.Connected == true)
@@ -211,39 +203,30 @@ namespace CommunicationInterfaces
     /// <param name="count">
     /// The number of characters to write
     /// </param>
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be sent
+    /// </exception>
     public void Send(byte[] data, int offset, int count)
     {
-      if (data == null)
-      {
-        ArgumentNullException _exc = new(nameof(data), "No data array was passed to send");
-        throw _exc;
-      }
-      if ((offset < 0) || (offset > data.Length))
-      {
-        ArgumentNullException _exc = new(nameof(offset), "Offset cannot be less than 0 or larger than the length of data");
-        throw _exc;
-      }
-      if ((count < 0) || (count + offset > data.Length))
-      {
-        ArgumentNullException _exc = new(nameof(count), "Count cannot be less than zero or larger than the length of Data when counting from offset");
-        throw _exc;
-      }
       try
       {
         _socketStream!.Write(data, offset, count);
-        //                Console.WriteLine("Sending " + count.ToString() + " characters starting at " + offset.ToString());
       }
       catch (IOException exc)
       {
-        throw new InvalidOperationException("Writing to the device failed!", exc);
+        throw new MetratecCommunicationException("Writing to the device failed!", exc);
       }
       catch (ObjectDisposedException exc)
       {
-        throw new ObjectDisposedException("Connection to device broken", exc);
+        throw new MetratecCommunicationException("Connection to device broken", exc);
       }
       catch (NullReferenceException exc)
       {
-        throw new ObjectDisposedException("Not connected", exc);
+        throw new MetratecCommunicationException("Not connected", exc);
+      }
+      catch (Exception exc)
+      {
+        throw new MetratecCommunicationException(exc.Message, exc);
       }
     }
 
@@ -253,22 +236,11 @@ namespace CommunicationInterfaces
     /// <param name="outputBuffer">
     /// The data / command sent to the reader
     /// </param>
-    /// <exception cref="T:System.ArgumentNullException">
-    /// Thrown when the specified <paramref name="outputBuffer"/>  is  <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown when an exception occurs when trying to access the port (e.g. port closed, timeout).
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// Thrown when the underlying function reports a broken stream
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be sent
     /// </exception>
     public void SendCommand(string outputBuffer)
     {
-      if (outputBuffer == null)
-      {
-        ArgumentNullException _exception = new(nameof(outputBuffer), "No string was passed to the send command");
-        throw _exception;
-      }
       try
       {
         byte[] help = System.Text.Encoding.ASCII.GetBytes(outputBuffer + "\u000D");
@@ -276,15 +248,19 @@ namespace CommunicationInterfaces
       }
       catch (IOException exc)
       {
-        throw new InvalidOperationException("Writing to the device failed!", exc);
+        throw new MetratecCommunicationException("Writing to the device failed!", exc);
       }
       catch (ObjectDisposedException exc)
       {
-        throw new ObjectDisposedException("Connection to device broken", exc);
+        throw new MetratecCommunicationException("Connection to device broken", exc);
       }
       catch (NullReferenceException exc)
       {
-        throw new ObjectDisposedException("Not connected", exc);
+        throw new MetratecCommunicationException("Not connected", exc);
+      }
+      catch (Exception exc)
+      {
+        throw new MetratecCommunicationException(exc.Message, exc);
       }
     }
 
@@ -297,6 +273,12 @@ namespace CommunicationInterfaces
     /// <returns>
     /// The bytes read
     /// </returns>
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be read
+    /// </exception>
+    /// <exception cref="System.TimeoutException">
+    /// If the data could not be read in time
+    /// </exception>
     public byte[] Read(int count)
     {
       byte[] tempBytes = new byte[count];
@@ -312,20 +294,20 @@ namespace CommunicationInterfaces
           if (ts.TotalMilliseconds >= _clientSocket!.ReceiveTimeout)
             throw new TimeoutException("Reading from the port timed out");
           if (_socketStream.Read(tempBytes, i, 1) < 1)
-            throw new InvalidOperationException("Reading from network stream didn't return anything");
+            throw new MetratecCommunicationException("Reading from network stream didn't return anything");
           start = DateTime.Now;
         }
         catch (IOException e)
         {
-          throw new TimeoutException("Reading from the port timed out", e);
+          throw new MetratecCommunicationException("Reading from the port timed out", e);
         }
         catch (ObjectDisposedException e)
         {
-          throw new ObjectDisposedException("Connection to device lost", e);
+          throw new MetratecCommunicationException("Connection to device lost", e);
         }
         catch (NullReferenceException exc)
         {
-          throw new ObjectDisposedException("Not connected", exc);
+          throw new MetratecCommunicationException("Not connected", exc);
         }
       }
       return tempBytes;
@@ -337,11 +319,11 @@ namespace CommunicationInterfaces
     /// <returns>
     /// The string read - without the newline character
     /// </returns>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown when no answer is received for more than 400ms.
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be read
     /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// Thrown when the underlying function reports a broken stream
+    /// <exception cref="System.TimeoutException">
+    /// If the data could not be read in time
     /// </exception>
     public string Read(string endLineString)
     {
@@ -368,15 +350,15 @@ namespace CommunicationInterfaces
         }
         catch (IOException e)
         {
-          throw new TimeoutException($"Reading from the port timed out - {sb}", e);
+          throw new MetratecCommunicationException($"Reading from the port timed out - {sb}", e);
         }
         catch (ObjectDisposedException e)
         {
-          throw new ObjectDisposedException("Connection to device lost", e);
+          throw new MetratecCommunicationException("Connection to device lost", e);
         }
         catch (NullReferenceException exc)
         {
-          throw new ObjectDisposedException("Not connected", exc);
+          throw new MetratecCommunicationException("Not connected", exc);
         }
       }
       sb.Remove(sb.Length - endLineString.Length, endLineString.Length);
@@ -389,14 +371,11 @@ namespace CommunicationInterfaces
     /// <returns>
     /// The answer read - nicely parsed
     /// </returns>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown when no answer is received for more than 400ms.
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be read
     /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// Thrown when the underlying function reports a broken stream
-    /// </exception>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown when the answer from the reader contained errors
+    /// <exception cref="System.TimeoutException">
+    /// If the data could not be read in time
     /// </exception>
     public string ReadResponse()
     {

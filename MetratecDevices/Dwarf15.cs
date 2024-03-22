@@ -6,7 +6,7 @@ namespace MetraTecDevices
   /// <summary>
   /// The Dwarf15 SMD module is a RFID module which can be integrated into your electronics
   /// </summary>
-  public class Dwarf15 : HfReaderGen1
+  public class Dwarf15 : HfReaderAscii
   {
     #region Constructor
     /// <summary>The constructor of the Dwarf15 object</summary>

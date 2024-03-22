@@ -6,46 +6,46 @@ using CommunicationInterfaces;
 namespace MetraTecDevices
 {
   /// <summary>
-  /// The reader class for the ASCII based metratec reader
+  /// The reader class for the metratec uhf readers based on the AT protocol
   /// </summary>
-  public class UhfReaderGen2 : MetratecReaderGen2<UhfTag>
+  public class UhfReaderAT : MetratecReaderAT<UhfTag>
   {
 
     private InventorySettings? _inventorySettings;
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the UhfReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
-    public UhfReaderGen2(ICommunicationInterface connection) : base(connection)
+    public UhfReaderAT(ICommunicationInterface connection) : base(connection)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the UhfReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
-    public UhfReaderGen2(ICommunicationInterface connection, ILogger logger) : base(connection, logger)
+    public UhfReaderAT(ICommunicationInterface connection, ILogger logger) : base(connection, logger)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the UhfReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// /// <param name="id">The reader id</param>
 
-    public UhfReaderGen2(ICommunicationInterface connection, string id) : base(connection, id)
+    public UhfReaderAT(ICommunicationInterface connection, string id) : base(connection, id)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the UhfReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="id">The reader id</param>
     /// <param name="logger">The connection interface</param>
-    public UhfReaderGen2(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
+    public UhfReaderAT(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
     {
     }
 
@@ -53,6 +53,9 @@ namespace MetraTecDevices
     /// Configure the reader.
     /// The base implementation must be called after success.
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void PrepareReader()
     {
       SetCommand("ATE1");
@@ -63,6 +66,9 @@ namespace MetraTecDevices
     /// Configure the reader.
     /// The base implementation must be called after success.
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void ConfigureReader()
     {
       base.ConfigureReader();
@@ -72,13 +78,16 @@ namespace MetraTecDevices
     /// Return the current inventory settings
     /// </summary>
     /// <returns>The current inventory settings</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public InventorySettings GetInventorySettings()
     {
       if (null != _inventorySettings)
       {
         return _inventorySettings;
       }
-      string[] split = SplitLine(GetCommand("AT+INVS?")); // +INVS: 0,0,0
+      string[] split = SplitLine(GetCommand("AT+INVS?")[7..]); // +INVS: 0,0,0
       _inventorySettings = new InventorySettings(split[0] == "1", split[1] == "1",
                                                  split[2] == "1", split[3] == "1");
       return _inventorySettings;
@@ -87,6 +96,9 @@ namespace MetraTecDevices
     /// Sets the inventory settings
     /// </summary>
     /// <param name="settings">the inventory settings</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetInventorySettings(InventorySettings settings)
     {
       SetCommand($"AT+INVS={(settings.OnlyNewTag ? "1" : "0")},{(settings.WithRssi ? "1" : "0")}," +
@@ -97,6 +109,9 @@ namespace MetraTecDevices
     /// Returns the tag count setting
     /// </summary>
     /// <returns>the tag count setting</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public TagCountSetting GetTagCountSetting()
     {
       string response = GetCommand("AT+Q?");
@@ -114,6 +129,9 @@ namespace MetraTecDevices
     /// Sets the expected tag count
     /// </summary>
     /// <param name="settings">the tag count settings</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetTagCountSettings(TagCountSetting settings)
     {
       int start = 0;
@@ -144,14 +162,8 @@ namespace MetraTecDevices
     /// Set the reader power
     /// </summary>
     /// <param name="power">the reader power</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetPower(int power)
     {
@@ -160,14 +172,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Get the current reader power
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public int GetPower()
     {
@@ -179,49 +185,31 @@ namespace MetraTecDevices
     /// Set the region
     /// </summary>
     /// <param name="region">the region to set</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
-    /// </exception>
-    public void SetRegion(REGION_GEN2 region)
+    public void SetRegion(UHF_REGION region)
     {
       SetCommand($"AT+REG={region}");
     }
     /// <summary>
     /// Get the current region
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
-    /// </exception>
-    public REGION_GEN2 GetRegion()
+    public UHF_REGION GetRegion()
     {
       string response = GetCommand("AT+REG?");
       //+REG: ETSI
-      return (REGION_GEN2)Enum.Parse(typeof(REGION_GEN2), response[6..]);
+      return (UHF_REGION)Enum.Parse(typeof(UHF_REGION), response[6..]);
     }
 
     /// <summary>
     /// Scan for the current inventory
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override List<UhfTag> GetInventory()
     {
@@ -234,14 +222,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Get the current inventory report
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public List<UhfTag> GetInventoryReport()
     {
@@ -253,14 +235,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Starts the continuous inventory scan. Make sure that the inventory is set. 
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void StartInventory()
     {
@@ -270,11 +246,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Start the continuous inventory report scan.
     /// </summary>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void StartInventoryReport()
     {
@@ -284,11 +257,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Stops the continuous inventory report scan.
     /// </summary>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void StopInventoryReport()
     {
@@ -296,11 +266,11 @@ namespace MetraTecDevices
       {
         SetCommand("AT+BINVR");
       }
-      catch (InvalidOperationException e)
+      catch (MetratecReaderException e)
       {
         if (!e.ToString().Contains("is not running"))
         {
-          throw e;
+          throw;
         }
       }
     }
@@ -328,7 +298,7 @@ namespace MetraTecDevices
           FireInventoryEvent(tags, true);
         }
       }
-      catch (InvalidOperationException e)
+      catch (MetratecReaderException e)
       {
         Logger.LogDebug("{} Error parse inventory - {}", id, e);
       }
@@ -402,7 +372,7 @@ namespace MetraTecDevices
       }
       if (error.Length > 0)
       {
-        throw new InvalidOperationException((0 > antenna ? $"Antenna {antenna}: " : "") + error);
+        throw new MetratecReaderException((0 > antenna ? $"Antenna {antenna}: " : "") + error);
       }
       if (isReport)
       {
@@ -424,6 +394,9 @@ namespace MetraTecDevices
     /// <param name="membank">the memory bank to check</param>
     /// <param name="startAddress">the start address</param>
     /// <param name="mask">the mask</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetMask(MEMBANK_GEN2 membank, int startAddress, string mask)
     {
       SetCommand($"AT+MSK={membank},{startAddress},{mask}");
@@ -432,6 +405,9 @@ namespace MetraTecDevices
     /// Set the epc mask
     /// </summary>
     /// <param name="mask">the mask</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetEpcMask(string mask)
     {
       SetMask(MEMBANK_GEN2.EPC, 0, mask);
@@ -441,6 +417,9 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="startAddress">the start address</param>
     /// <param name="mask">the mask</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetEpcMask(int startAddress, string mask)
     {
       SetMask(MEMBANK_GEN2.EPC, startAddress, mask);
@@ -448,6 +427,9 @@ namespace MetraTecDevices
     /// <summary>
     /// Reset/Disable the current reader mask
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void ResetMask()
     {
       SetCommand("AT+MSK=OFF");
@@ -458,6 +440,9 @@ namespace MetraTecDevices
     /// <param name="membank">the memory bank to check</param>
     /// <param name="startAddress">the start address</param>
     /// <param name="mask">the binary mask, e.g. '0110'</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetBitmask(MEMBANK_GEN2 membank, int startAddress, string mask)
     {
       SetCommand($"AT+BMSK={membank},{startAddress},{mask}");
@@ -465,6 +450,9 @@ namespace MetraTecDevices
     /// <summary>
     /// Reset/Disable the current reader bitmask
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void ResetBitmask()
     {
       SetCommand("AT+BMSK=OFF");
@@ -478,6 +466,9 @@ namespace MetraTecDevices
     /// <param name="length">the bytes to read</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> ReadTagData(MEMBANK_GEN2 memory, int startAddress, int length, String epcMask = "")
     {
       String response = GetCommand($"AT+READ={memory},{startAddress},{length}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -515,6 +506,9 @@ namespace MetraTecDevices
     /// <param name="length">bytes to read from the tid</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> ReadTagTid(int startAddress, int length, String epcMask = "")
     {
       return ReadTagData(MEMBANK_GEN2.TID, startAddress, length, epcMask);
@@ -526,6 +520,9 @@ namespace MetraTecDevices
     /// <param name="length">bytes to read from the user data</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> ReadTagUsrData(int startAddress, int length, String epcMask = "")
     {
       return ReadTagData(MEMBANK_GEN2.USR, startAddress, length, epcMask);
@@ -538,6 +535,9 @@ namespace MetraTecDevices
     /// <param name="data">data, hex string</param>
     /// <param name="epcMask">ecp mask, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> WriteTagData(MEMBANK_GEN2 memory, int startAddress, string data, string epcMask = "")
     {
       string response = GetCommand($"AT+WRT={memory},{startAddress},{data}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -568,6 +568,9 @@ namespace MetraTecDevices
     /// <param name="data">data, hex string</param>
     /// <param name="epcMask">ecp mask, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> WriteTagUsrData(int startAddress, string data, string epcMask = "")
     {
       return WriteTagData(MEMBANK_GEN2.USR, startAddress, data, epcMask);
@@ -579,6 +582,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> KillTag(String password, String epcMask = "")
     {
       String resp = GetCommand($"AT+KILL={password}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -593,6 +599,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> LockTag(MEMBANK_GEN2 membank, String password, String epcMask = "")
     {
       String resp = GetCommand($"AT+LCK={membank},{password}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -606,6 +615,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> LockTagData(String password, String epcMask = "")
     {
       return LockTag(MEMBANK_GEN2.USR, password, epcMask);
@@ -618,6 +630,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> LockTagEpc(String password, String epcMask = "")
     {
       return LockTag(MEMBANK_GEN2.EPC, password, epcMask);
@@ -630,6 +645,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> LockTagPermament(MEMBANK_GEN2 membank, String password, String epcMask = "")
     {
       String resp = GetCommand($"AT+PLCK={membank},{password}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -643,6 +661,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> LockTagMemoryPermament(String password, String epcMask = "")
     {
       return LockTagPermament(MEMBANK_GEN2.USR, password, epcMask);
@@ -654,6 +675,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> LockTagEpcPermament(String password, String epcMask = "")
     {
       return LockTagPermament(MEMBANK_GEN2.EPC, password, epcMask);
@@ -666,6 +690,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> UnlockTag(MEMBANK_GEN2 membank, String password, String epcMask = "")
     {
       String resp = GetCommand($"AT+ULCK={membank},{password}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -679,6 +706,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> UnlockTagData(String password, String epcMask = "")
     {
       return UnlockTag(MEMBANK_GEN2.USR, password, epcMask);
@@ -690,6 +720,9 @@ namespace MetraTecDevices
     /// <param name="password">the kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> UnlockTagEpc(String password, String epcMask = "")
     {
       return UnlockTag(MEMBANK_GEN2.EPC, password, epcMask);
@@ -702,6 +735,9 @@ namespace MetraTecDevices
     /// <param name="newPassword">the new kill password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> ChangeKillPassword(String password, String newPassword, String epcMask = "")
     {
       String resp = GetCommand($"AT+PWD=KILL,{password},{newPassword}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -716,6 +752,9 @@ namespace MetraTecDevices
     /// <param name="newPassword">the new lock password</param>
     /// <param name="epcMask">the epc mask to use, optional</param>
     /// <returns>List with processed tags. If the tag has error, the kill was not successful</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTag> ChangeLockPassword(String password, String newPassword, String epcMask = "")
     {
       String resp = GetCommand($"AT+PWD=LCK,{password},{newPassword}{(epcMask.Length != 0 ? $",{epcMask}" : "")}");
@@ -729,6 +768,9 @@ namespace MetraTecDevices
     /// For further details, please contact Impinj directly.
     /// </summary>
     /// <returns>a list with the authentication responses</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public List<UhfTagAuth> CallImpinjAuthenticationService()
     {
       string[] responses = SplitResponse(GetCommand("AT+IAS"));
@@ -751,6 +793,9 @@ namespace MetraTecDevices
     /// Returns the current selected session. See SetSession for more details.
     /// </summary>
     /// <returns>the current selected session</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public string GetSession()
     {
       string response = GetCommand("AT+SES?");
@@ -763,6 +808,9 @@ namespace MetraTecDevices
     /// Otherwise, unexpected results during inventory scans with "only new tags" active might happen.
     /// </summary>
     /// <param name="sessionId">Session to set ["0", "1", "2", "3", "AUTO"]</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetSession(string sessionId)
     {
       SetCommand($"AT+SES={sessionId}");
@@ -771,6 +819,9 @@ namespace MetraTecDevices
     /// Returns the current rf mode. See SetRfMode for more details.
     /// </summary>
     /// <returns>the current selected session</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public string GetRfMode()
     {
       string response = GetCommand("AT+RFM?");
@@ -783,6 +834,9 @@ namespace MetraTecDevices
     /// See reader description for more detail.
     /// </summary>
     /// <param name="modeId">mode id</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetRfMode(string modeId)
     {
       SetCommand($"AT+RFM={modeId}");
@@ -794,6 +848,9 @@ namespace MetraTecDevices
     /// Tags from other manufacturers will most likely not answer at all when those options are active!
     /// </summary>
     /// <param name="settings">the settings</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetCustomImpinjSettings(CustomImpinjSettings settings)
     {
       SetCommand($"AT+ICS={(settings.FastId ? "1" : "0")},{(settings.TagFocus ? "1" : "0")}");
@@ -802,10 +859,23 @@ namespace MetraTecDevices
     /// Gets the current custom impinj settings
     /// </summary>
     /// <returns>the setting</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public CustomImpinjSettings GetCustomImpinjSettings()
     {
       string[] split = SplitLine(GetCommand("AT+ICS?")[6..]);
       return new CustomImpinjSettings(split[0] == "1", split[1] == "1");
+    }
+
+    /// <summary>
+    /// Parse the error message and return the reader or transponder exception
+    /// </summary>
+    /// <param name="response">error response</param>
+    /// <returns></returns>
+    protected override MetratecReaderException ParseErrorResponse(String response)
+    {
+      return new MetratecReaderException(response);
     }
   }
   /// <summary>
@@ -896,9 +966,9 @@ namespace MetraTecDevices
     TID
   }
   /// <summary>
-  /// Uhf reader region setting
+  /// Uhf reader region setting for the uhf reader based on the at protocol
   /// </summary>
-  public enum REGION_GEN2
+  public enum UHF_REGION
   {
 
     /// <summary>
@@ -916,7 +986,7 @@ namespace MetraTecDevices
   }
 
   /// <summary>
-  /// Inventory report settings
+  /// Inventory report settings for the Pulsar LR reader
   /// </summary>
   public class InventoryReportSettings
   {
@@ -941,7 +1011,7 @@ namespace MetraTecDevices
     }
   }
   /// <summary>
-  /// /// Inventory settings
+  /// Inventory settings for the Pulsar LR reader
   /// </summary>
   public class TagCountSetting
   {

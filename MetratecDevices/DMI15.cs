@@ -10,7 +10,7 @@ namespace MetraTecDevices
   /// as the reader only needs to be connected via Power over Ethernet (PoE). An external antenna is not necessary,
   /// as it is already built into the device.
   /// </summary>
-  public class DMI15 : HfReaderGen1
+  public class DMI15 : HfReaderAscii
   {
     #region Constructor
     /// <summary>The constructor of the DMI15 object</summary>

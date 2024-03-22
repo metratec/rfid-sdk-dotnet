@@ -14,7 +14,7 @@ namespace MetraTecDevices
   /// The number of antennas can further be extended using our multiplexers to up to 64 read points if you want to
   /// build an RFID smart shelve or a similar application.
   /// </summary>
-  public class PulsarLR : UhfReaderGen2
+  public class PulsarLR : UhfReaderAT
   {
     #region Internal Variables
     private List<int> currentAntennaPowers = new();
@@ -39,9 +39,13 @@ namespace MetraTecDevices
     /// Configure the reader.
     /// The base implementation must be called after success.
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void ConfigureReader()
     {
       base.ConfigureReader();
+      EnableInputEvents();
       GetCurrentAntennaPowers();
       GetCurrentConnectedMultiplexer();
     }
@@ -50,8 +54,8 @@ namespace MetraTecDevices
     /// the power value per antenna (index 0 == antenna 1)
     /// </summary>
     /// <returns>List with the power values</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     protected List<int> GetCurrentAntennaPowers()
     {
@@ -64,8 +68,8 @@ namespace MetraTecDevices
     /// set the power values for the antennas
     /// </summary>
     /// <param name="antennaPowers">list with the multiplexer size for each antenna</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     protected void SetCurrentAntennaPowers(List<int> antennaPowers)
     {
@@ -77,14 +81,14 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="antenna">the antenna</param>
     /// <returns>the current antenna power</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public int GetAntennaPower(int antenna)
     {
       if (antenna <= 0)
       {
-        throw new InvalidOperationException($"Antenna {antenna} is not available");
+        throw new MetratecReaderException($"Antenna {antenna} is not available");
       }
       List<int> antennaPowers = GetCurrentAntennaPowers();
       try
@@ -93,7 +97,7 @@ namespace MetraTecDevices
       }
       catch (IndexOutOfRangeException)
       {
-        throw new InvalidOperationException($"Antenna {antenna} is not available");
+        throw new MetratecReaderException($"Antenna {antenna} is not available");
       }
     }
     /// <summary>
@@ -101,34 +105,32 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="antenna">the antenna</param>
     /// <param name="power">the rfid power to set</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void SetAntennaPower(int antenna, int power)
     {
       if (antenna <= 0)
       {
-        throw new InvalidOperationException($"Antenna {antenna} is not available");
+        throw new MetratecReaderException($"Antenna {antenna} is not available");
       }
       try
       {
-#pragma warning disable IDE0028
         List<int> antennaPowers = new(this.currentAntennaPowers);
-#pragma warning restore IDE0028 
         antennaPowers[antenna - 1] = power;
         SetCurrentAntennaPowers(antennaPowers);
       }
       catch (IndexOutOfRangeException)
       {
-        throw new InvalidOperationException($"Antenna {antenna} is not available");
+        throw new MetratecReaderException($"Antenna {antenna} is not available");
       }
     }
     /// <summary>
     /// Gets the configured multiplexer size per antenna (index 0 == antenna 1)
     /// </summary>
     /// <returns>List with the configured multiplexer size</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     protected List<int> GetCurrentConnectedMultiplexer()
     {
@@ -141,8 +143,8 @@ namespace MetraTecDevices
     /// set the power values for the antennas
     /// </summary>
     /// <param name="connectedMultiplexer">list with the multiplexer size for each antenna</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     protected void SetCurrentConnectedMultiplexer(List<int> connectedMultiplexer)
     {
@@ -155,14 +157,14 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="antennaPort">the antenna port to which the multiplexer is connected</param>
     /// <returns>the multiplexer size</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public int GetMultiplexer(int antennaPort)
     {
       if (1 > antennaPort || antennaPort > 4)
       {
-        throw new InvalidOperationException($"Antenna {antennaPort} is not available");
+        throw new MetratecReaderException($"Antenna {antennaPort} is not available");
       }
       List<int> multiplexer = GetCurrentConnectedMultiplexer();
       return multiplexer[antennaPort - 1];
@@ -172,18 +174,16 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="antennaPort">the antenna port to which the multiplexer is connected</param>
     /// <param name="multiplexer">the multiplexer size</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void SetMultiplexer(int antennaPort, int multiplexer)
     {
       if (1 > antennaPort || antennaPort > 4)
       {
-        throw new InvalidOperationException($"Antenna {antennaPort} is not available");
+        throw new MetratecReaderException($"Antenna {antennaPort} is not available");
       }
-#pragma warning disable IDE0028
       List<int> connectedMultiplexer = new(this.currentConnectedMultiplexer);
-#pragma warning restore IDE0028
       connectedMultiplexer[antennaPort - 1] = multiplexer;
       SetCurrentAntennaPowers(connectedMultiplexer);
       // update antennas power values
@@ -195,14 +195,8 @@ namespace MetraTecDevices
     /// This corresponds to the blue LED.
     /// </summary>
     /// <param name="settings">the high on tag parameter</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void SetHighOnTag(HighOnTagSetting settings)
     {
@@ -226,14 +220,8 @@ namespace MetraTecDevices
     /// Gets the current high on tag feature setting
     /// </summary>
     /// <returns>the current high on tag setting</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public HighOnTagSetting GetHighOnTag()
     {

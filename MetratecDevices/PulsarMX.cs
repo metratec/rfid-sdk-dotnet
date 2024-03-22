@@ -8,7 +8,7 @@ namespace MetraTecDevices
   /// up to 150 transponders simultaneously in the field. Its main applications are in container tracking,
   /// reading data from sensor tags (e.g. temperature sensors), and on a conveyor belt.
   /// </summary>
-  public class PulsarMX : UhfReaderGen1
+  public class PulsarMX : UhfReaderAscii
   {
     #region Constructor
     /// <summary>Creates a new MetraTecDevices.PulsarMX instance</summary>
@@ -34,15 +34,9 @@ namespace MetraTecDevices
     /// <summary>
     /// Set the reader power
     /// </summary>
-    /// <param name="power">the reader power [12, 27]</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <param name="power">the reader power</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetPower(int power)
     {

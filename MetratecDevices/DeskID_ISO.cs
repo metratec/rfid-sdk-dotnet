@@ -8,7 +8,7 @@ namespace MetraTecDevices
   /// Typical applications include customer management (e.g. in sports studios), the configuration of transponders
   /// in automation systems, and all other applications in which ISO15693 RFID tags need to be read with a PC or notebook computer. 
   /// </summary>
-  public class DeskID_ISO : HfReaderGen1
+  public class DeskID_ISO : HfReaderAscii
   {
     #region Constructor
     /// <summary>The constructor of the DeskID_ISO object</summary>

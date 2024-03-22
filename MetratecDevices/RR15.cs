@@ -4,9 +4,10 @@ using CommunicationInterfaces;
 namespace MetraTecDevices
 {
   /// <summary>
-  /// The QR15 HF RFID Module with integrated antenna is an easy to use RFID module which can be integrated into your electronics without big effort
+  /// The RR15 HF RFID Module with integrated antenna and is an easy to use RFID module
+  /// which can be integrated into your electronics without big effort 
   /// </summary>
-  public class RR15 : HfReaderGen1
+  public class RR15 : HfReaderAscii
   {
     #region Constructor
     /// <summary>Creates a new MetraTecDevices.RR15 instance</summary>

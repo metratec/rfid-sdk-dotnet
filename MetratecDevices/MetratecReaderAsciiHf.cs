@@ -8,50 +8,50 @@ using CommunicationInterfaces;
 namespace MetraTecDevices
 {
   /// <summary>
-  /// The reader class for the ASCII based metratec reader
+  /// The reader class for the metratec hf readers based on the Ascii protocol
   /// </summary>
-  public class HfReaderGen1 : MetratecReaderGen1<HfTag>
+  public class HfReaderAscii : MetratecReaderAscii<HfTag>
   {
     private List<HfTag>? _lastInventory = null;
     private bool _continuousStarted = false;
-    
+
     private HfTag? _lastRequest = null;
     // private RfInterfaceMode _mode = RfInterfaceMode.SingleSubcarrier_100percentASK;
 
     private bool _isSingleSubcarrier = true;
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the HfReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
-    public HfReaderGen1(ICommunicationInterface connection) : base(connection)
+    public HfReaderAscii(ICommunicationInterface connection) : base(connection)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the HfReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
-    public HfReaderGen1(ICommunicationInterface connection, ILogger logger) : base(connection, logger)
+    public HfReaderAscii(ICommunicationInterface connection, ILogger logger) : base(connection, logger)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the HfReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="id">The reader id</param>
-    public HfReaderGen1(ICommunicationInterface connection, string id) : base(connection, id)
+    public HfReaderAscii(ICommunicationInterface connection, string id) : base(connection, id)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the HfReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="id">The reader id</param>
     /// <param name="logger">The connection interface</param>
-    public HfReaderGen1(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
+    public HfReaderAscii(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
     {
     }
 
@@ -59,6 +59,9 @@ namespace MetraTecDevices
     /// Configure the reader.
     /// The base implementation must be called after success.
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void ConfigureReader()
     {
       SetVerbosityLevel(2);
@@ -110,7 +113,7 @@ namespace MetraTecDevices
           }
           else
           {
-            throw new InvalidOperationException(s);
+            throw new MetratecReaderException(s);
           }
         }
         else if (s.StartsWith("ARP"))
@@ -149,7 +152,7 @@ namespace MetraTecDevices
       if (null == NewRequestResponse)
         return;
       NewRequestResponseArgs args = new(tag, new DateTime());
-      NewRequestResponse(this, args);
+      ThreadPool.QueueUserWorkItem(o => NewRequestResponse.Invoke(this, args));
     }
 
     private void HandleRequestResponse(string response)
@@ -199,15 +202,9 @@ namespace MetraTecDevices
     /// <summary>
     /// Set the reader power
     /// </summary>
-    /// <param name="power">the reader power (100, 200)</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <param name="power">the reader power</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetPower(int power)
     {
@@ -217,21 +214,15 @@ namespace MetraTecDevices
       }
       else
       {
-        throw new InvalidOperationException($"Firmware Version {FirmwareVersion} does not support power settings");
+        throw new MetratecReaderException($"Firmware Version {FirmwareVersion} does not support power settings");
       }
     }
 
     /// <summary>
     /// Scan for the current inventory
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override List<HfTag> GetInventory()
     {
@@ -242,11 +233,8 @@ namespace MetraTecDevices
     /// Scan for the current inventory
     /// </summary>
     /// <param name="afi">The Application Family Identifier group the tag has to belong to to be read</param>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public List<HfTag> GetInventory(int afi)
     {
@@ -259,11 +247,8 @@ namespace MetraTecDevices
     /// <param name="singleTag">Set to true if only one tag is expected. Throws an error if more tags are found</param>
     /// <param name="onlyNewTags">Find each tag only once as long as it stays powered within the rf field</param>
     /// <param name="afi">The Application Family Identifier group the tag has to belong to to be read</param>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public List<HfTag> GetInventory(bool singleTag, bool onlyNewTags, int afi = 0)
     {
@@ -282,8 +267,8 @@ namespace MetraTecDevices
         }
       }
       if (!Connected)
-        throw new ObjectDisposedException("Not connected");
-      throw new TimeoutException("Response timeout");
+        throw new MetratecReaderException("Not connected");
+      throw new MetratecReaderException("Response timeout");
     }
 
     /// <summary>
@@ -292,14 +277,8 @@ namespace MetraTecDevices
     /// If the event handler is not set, the found transponders can be fetched
     /// via the method FetchInventory
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void StartInventory()
     {
@@ -313,14 +292,8 @@ namespace MetraTecDevices
     /// via the method FetchInventory
     /// </summary>
     /// <param name="afi">The Application Family Identifier group the tag has to belong to to be read</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void StartInventory(int afi)
     {
@@ -329,11 +302,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Stops the continuous inventory scan.
     /// </summary>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void StopInventory()
     {
@@ -349,14 +319,8 @@ namespace MetraTecDevices
     /// <param name="singleTag">Set to true if only one tag is expected. Throws an error if more tags are found</param>
     /// <param name="onlyNewTags">Find each tag only once as long as it stays powered within the rf field</param>
     /// <param name="afi">The Application Family Identifier group the tag has to belong to to be read</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void StartInventory(bool singleTag, bool onlyNewTags, int afi = 0)
     {
@@ -366,43 +330,39 @@ namespace MetraTecDevices
     /// <summary>
     /// Enable the rf interface 
     /// </summary>
-    /// <param name="mode">the interface mode. Defaults to SingeSubcarrier with 100% ASK modulation</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <param name="subCarrier">rf interface sub carrier</param>
+    /// <param name="modulationDepth">rf interface modulation depth</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
-    /// </exception>
-    public void EnableRfInterface(RfInterfaceMode mode = RfInterfaceMode.SingleSubcarrier_100percentASK)
+    public void EnableRfInterface(SubCarrier subCarrier = SubCarrier.SINGLE, ModulationDepth modulationDepth = ModulationDepth.Depth100)
     {
       string command = "SRI ";
-      switch (mode)
+      switch (subCarrier)
       {
-        case RfInterfaceMode.SingleSubcarrier_10percentASK:
-          command += "SS 10";
-          _isSingleSubcarrier = true;
+        case SubCarrier.SINGLE:
+          command += "SS ";
           break;
-        case RfInterfaceMode.SingleSubcarrier_100percentASK:
-          command += "SS 100";
-          _isSingleSubcarrier = true;
-          break;
-        case RfInterfaceMode.DoubleSubcarrier_10percentASK:
-          if (FirmwareMajorVersion < 3)
-          {
-            throw new InvalidOperationException($"Not supported by Firmware less than 3.0");
-          }
-          command += "DS 10";
-          _isSingleSubcarrier = false;
-          break;
-        case RfInterfaceMode.DoubleSubcarrier_100percentASK:
-          command += "DS 100";
-          _isSingleSubcarrier = false;
+        case SubCarrier.DOUBLE:
+          command += "DS ";
           break;
         default:
-          throw new InvalidOperationException($"Unhandled mode {mode}");
+          throw new MetratecReaderException($"Unhandled mode sub carrier {subCarrier}");
+      }
+      switch (modulationDepth)
+      {
+        case ModulationDepth.Depth10:
+          command += "10";
+          if (subCarrier == SubCarrier.DOUBLE && FirmwareMajorVersion < 3)
+          {
+            throw new MetratecReaderException($"Double subcarrier and modulation depth 10 is not supported by Firmware less than 3.0");
+          }
+          break;
+        case ModulationDepth.Depth100:
+          command += "100";
+          break;
+        default:
+          throw new MetratecReaderException($"Unhandled mode modulation depth {modulationDepth}");
       }
       SetCommand(command);
       // _mode = mode;
@@ -413,14 +373,20 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns>HfTag with the data or the error message</returns>
+    /// <returns>the transponder information</returns>
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public HFTagInformation ReadTagInformation(string? tagId = null, bool optionFlag = false)
     {
       HfTag tag = SendRequest("WRQ", "2B", null, tagId, optionFlag);
-      HFTagInformation info = new() { TID = tag.TID, HasError = tag.HasError, Message = tag.Message };
-      if (info.HasError)
+      HFTagInformation info = new() { TID = tag.TID };
+      if (tag.HasError)
       {
-        return info;
+        throw new TransponderException(tag.Message);
       }
       byte infoFlag = byte.Parse(tag.Data![0..2], System.Globalization.NumberStyles.HexNumber);
       info.DSFIDSupported = 0 != (infoFlag & 0x01);
@@ -448,15 +414,26 @@ namespace MetraTecDevices
     }
 
     /// <summary>
-    /// Read a data block of a transponder
+    /// Read a data block of a transponder as hex
     /// </summary>
     /// <param name="block">block to read</param>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns>HfTag with the data or the error message</returns>
-    public HfTag ReadBlock(int block, string tagId = null!, bool optionFlag = false)
+    /// <returns>the transponder data</returns>
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public string ReadBlock(int block, string tagId = null!, bool optionFlag = false)
     {
-      return SendRequest("REQ", "20", $"{block:X2}", tagId, optionFlag);
+      HfTag tag = SendRequest("REQ", "20", $"{block:X2}", tagId, optionFlag);
+      if (tag.HasError)
+      {
+        throw new TransponderException(tag.Message);
+      }
+      return tag.Data ?? "";
     }
 
     /// <summary>
@@ -466,23 +443,34 @@ namespace MetraTecDevices
     /// <param name="blocksToRead">Blocks to read</param>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns>HfTag with the data or the error message</returns>
-    public HfTag ReadMultipleBlocks(int startBlock, int blocksToRead, string tagId = null!, bool optionFlag = false)
+    /// <returns>the transponder data</returns>
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public string ReadMultipleBlocks(int startBlock, int blocksToRead, string tagId = null!, bool optionFlag = false)
     {
       if (FirmwareMajorVersion < 3 && blocksToRead > 25)
       {
-        throw new InvalidOperationException("The number of blocks must not be greater than 25.");
+        throw new MetratecReaderException("The number of blocks must not be greater than 25.");
       }
       if (0 > startBlock || startBlock > 255 || (startBlock + blocksToRead) > 255)
       {
-        throw new InvalidOperationException("wrong parameter number\n0<=startBlock<256  (startBlock+numberBlocks)<256");
+        throw new MetratecReaderException("wrong parameter number\n0<=startBlock<256  (startBlock+numberBlocks)<256");
       }
       int numberOfFollowingBlock = blocksToRead - 1;
       if (numberOfFollowingBlock < 0)
       {
         numberOfFollowingBlock = 0;
       }
-      return SendRequest("REQ", "23", $"{startBlock:X2}{numberOfFollowingBlock:X2}", tagId, optionFlag);
+      HfTag tag =  SendRequest("REQ", "23", $"{startBlock:X2}{numberOfFollowingBlock:X2}", tagId, optionFlag);
+      if (tag.HasError)
+      {
+        throw new TransponderException(tag.Message);
+      }
+      return tag.Data ?? "";
     }
     /// <summary>
     /// Write a block of a transponder
@@ -491,15 +479,19 @@ namespace MetraTecDevices
     /// <param name="data">the data to write</param>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns></returns>
-    public HfTag WriteBlock(int block, string data, string tagId = null!, bool optionFlag = false)
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void WriteBlock(int block, string data, string tagId = null!, bool optionFlag = false)
     {
-      HfTag response = SendRequest("WRQ", "21", $"{block:X2}{data}", tagId, optionFlag);
-      if (!response.HasError)
+      HfTag tag = SendRequest("WRQ", "21", $"{block:X2}{data}", tagId, optionFlag);
+      if (tag.HasError)
       {
-        response.Data = data;
+        throw new TransponderException(tag.Message);
       }
-      return response;
     }
 
     /// <summary>
@@ -510,8 +502,13 @@ namespace MetraTecDevices
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="blockSize">the tag block size, default 4 Byte</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns></returns>
-    public HfTag WriteMultipleBlocks(int startBlock, string data, string tagId = null!, int blockSize = 4, bool optionFlag = false)
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void WriteMultipleBlocks(int startBlock, string data, string tagId = null!, int blockSize = 4, bool optionFlag = false)
     {
       int hexDataSize = blockSize * 2;
       int numberBlocks = (data.Length + hexDataSize - 1) / hexDataSize;
@@ -520,41 +517,24 @@ namespace MetraTecDevices
         // given data is too short...fill with '00'
         data += "0";
       }
-      HfTag tag = null!;
       for (int i = 0; i < numberBlocks; i++)
       {
         for (int n = 0; n < 2; n++)
         {
-          HfTag response = WriteBlock(startBlock + i, data.Substring(startBlock + hexDataSize * i, hexDataSize), tagId, optionFlag);
-          if (!response.HasError)
+          try
           {
-            if (null != tag)
-            {
-              tag.Data += response.Data;
-            }
-            else
-            {
-              tag = response;
-            }
-            break;
-          }
-          else if (n >= 1)
+            WriteBlock(startBlock + i, data.Substring(startBlock + hexDataSize * i, hexDataSize), tagId, optionFlag);
+          } 
+          catch (TransponderException)
           {
-            // second retry has also an error
-            if (tag == null)
+            if (n >= 1) 
             {
-              return response;
-            }
-            else
-            {
-              tag.HasError = response.HasError;
-              tag.Message = response.Message;
-              return tag;
+              // second retry has also an error
+              throw;
             }
           }
         }
       }
-      return tag;
     }
     /// <summary>
     /// Write the transponder application family identifier value
@@ -562,20 +542,38 @@ namespace MetraTecDevices
     /// <param name="afi">the application family identifier to set</param>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns></returns>
-    public HfTag WriteTagAFI(int afi, string? tagId, bool optionFlag = false)
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void WriteTagAFI(int afi, string? tagId, bool optionFlag = false)
     {
-      return SendRequest("WRQ", "27", afi.ToString("X2"), tagId, optionFlag);
+      HfTag tag = SendRequest("WRQ", "27", afi.ToString("X2"), tagId, optionFlag);
+      if (tag.HasError)
+      {
+        throw new TransponderException(tag.Message);
+      }
     }
     /// <summary>
     /// Lock the transponder application family identifier
     /// </summary>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns></returns>
-    public HfTag LockTagAFI(string? tagId, bool optionFlag = false)
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void LockTagAFI(string? tagId, bool optionFlag = false)
     {
-      return SendRequest("WRQ", "28", null, tagId, optionFlag);
+      HfTag tag =  SendRequest("WRQ", "28", null, tagId, optionFlag);
+      if (tag.HasError)
+      {
+        throw new TransponderException(tag.Message);
+      }
     }
 
     /// <summary>
@@ -584,23 +582,39 @@ namespace MetraTecDevices
     /// <param name="dsfid">the data storage format identifier to set</param>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns></returns>
-    public HfTag WriteTagDSFID(int dsfid, string? tagId, bool optionFlag = false)
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void WriteTagDSFID(int dsfid, string? tagId, bool optionFlag = false)
     {
-      return SendRequest("WRQ", "29", dsfid.ToString("X2"), tagId, optionFlag);
+      HfTag tag =  SendRequest("WRQ", "29", dsfid.ToString("X2"), tagId, optionFlag);
+      if (tag.HasError)
+      {
+        throw new TransponderException(tag.Message);
+      }
     }
     /// <summary>
     /// Lock the transponder data storage format identifier
     /// </summary>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
     /// <param name="optionFlag">Meaning is defined by the tag command description</param>
-    /// <returns></returns>
-    public HfTag LockTagDSFID(string? tagId, bool optionFlag = false)
+    /// <exception cref="TransponderException">
+    /// If the transponder return an error, the tag error message is in the exception message
+    /// </exception>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void LockTagDSFID(string? tagId, bool optionFlag = false)
     {
-      return SendRequest("WRQ", "2A", null, tagId, optionFlag);
+      HfTag tag =  SendRequest("WRQ", "2A", null, tagId, optionFlag);
+      if (tag.HasError)
+      {
+        throw new TransponderException(tag.Message);
+      }
     }
-
-
 
     /// <summary>
     /// Send a request to the transponder
@@ -610,6 +624,9 @@ namespace MetraTecDevices
     /// <param name="data">The additional data</param>
     /// <param name="tagId">The transponder id. Defaults to null.</param>
     /// <param name="optionFlag">The option flag. Defaults to False.</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected HfTag SendRequest(string command, string tagCommand, string? data = null,
                                 string? tagId = null, bool optionFlag = false)
     {
@@ -638,35 +655,42 @@ namespace MetraTecDevices
         }
       }
       if (!Connected)
-        throw new ObjectDisposedException("Not connected");
-      throw new TimeoutException("Response timeout");
+        throw new MetratecReaderException("Not connected");
+      throw new MetratecReaderException("Response timeout");
     }
 
 
   }
 
   /// <summary>
-  /// RF interface mode for the tag communication
+  /// Used RF interface sub carrier
   /// </summary>
-  public enum RfInterfaceMode
+  public enum SubCarrier
   {
     /// <summary>
-    /// Single subcarrier with 10% ASK modulation
+    /// Single mode
     /// </summary>
-    SingleSubcarrier_10percentASK,
+    SINGLE,
     /// <summary>
-    /// Default Setting. Single subcarrier with 100% ASK modulation
+    /// Double Mode
     /// </summary>
-    SingleSubcarrier_100percentASK,
-    /// <summary>
-    /// Double subcarrier with 10% ASK modulation
-    /// </summary>
-    DoubleSubcarrier_10percentASK,
-    /// <summary>
-    /// Double subcarrier with 100% ASK modulation
-    /// </summary>
-    DoubleSubcarrier_100percentASK
+    DOUBLE
   }
+  /// <summary>
+  /// Used RF interface modulation depth
+  /// </summary>
+  public enum ModulationDepth
+  {
+    /// <summary>
+    /// Modulation depth 10
+    /// </summary>
+    Depth10,
+    /// <summary>
+    /// Modulation depth 100
+    /// </summary>
+    Depth100
+  }
+
 
   /// <summary>
   /// new inventory event arguments
@@ -730,13 +754,5 @@ namespace MetraTecDevices
     /// <summary>IC Reference</summary>
     /// <value></value>
     public int ICReference { get; internal set; }
-    /// <summary>
-    /// True if the tag contains error information
-    /// </summary>
-    public bool HasError { get; internal set; }
-    /// <summary>
-    /// the error message 
-    /// </summary>
-    public string? Message { get; internal set; }
   }
 }

@@ -27,9 +27,9 @@ namespace ReaderExamples
       {
         reader.Connect(2000);
       }
-      catch (TimeoutException)
+      catch (MetratecReaderException e)
       {
-        Console.WriteLine($"Can not connect to reader. Program exits");
+        Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
         return;
       }
       // fetches the current inventory - if an inventory listener exists, this method also triggers the listener
@@ -59,9 +59,9 @@ namespace ReaderExamples
       {
         reader.Connect(2000);
       }
-      catch (TimeoutException)
+      catch (MetratecReaderException e)
       {
-        Console.WriteLine($"Can not connect to reader. Program exits");
+        Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
         return;
       }
       // fetches the current inventory - if an inventory listener exists, this method also triggers the listener
@@ -74,24 +74,25 @@ namespace ReaderExamples
       }
       HfTag tag = tags[0];
       Console.WriteLine("Try to read tag bock 0...");
-      HfTag resp = reader.ReadBlock(0, tag.TID);
-      if (resp.HasError)
+      try
       {
-        Console.WriteLine($"Can not read the transponder block 0 {resp.Message}");
+        string resp = reader.ReadBlock(0, tag.TID);
+        Console.WriteLine($"Transponder Block 0: {resp}");
       }
-      else
+      catch (TransponderException e)
       {
-        Console.WriteLine($"Transponder Block 0: {resp.Data}");
+        Console.WriteLine($"Can not read the transponder block 0 {e.Message}");
       }
+
       Console.WriteLine("Try to write tag bock 0...");
-      resp = reader.WriteBlock(0, "01020304", tag.TID);
-      if (resp.HasError)
+      try
       {
-        Console.WriteLine($"Can not write the transponder block 0 {resp.Message}");
+        reader.WriteBlock(0, "01020304", tag.TID);
+        Console.WriteLine("Transponder Block 0 written");
       }
-      else
+      catch (TransponderException e)
       {
-        Console.WriteLine($"Transponder Block 0 written: {resp.Data}");
+        Console.WriteLine($"Can not write the transponder block 0 {e.Message}");
       }
       reader.Disconnect();
     }

@@ -11,7 +11,7 @@ namespace MetraTecDevices
   /// without needing to address them individually. This allows applications directly at conveyor belts,
   /// in production machinery, and in electric control cabinets.
   /// </summary>
-  public class QuasarMX : HfReaderGen1
+  public class QuasarMX : HfReaderAscii
   {
     #region Constructor
     /// <summary>Creates a new MetraTecDevices.QuasarMX instance</summary>

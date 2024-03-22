@@ -5,9 +5,9 @@ using Microsoft.Extensions.Logging;
 namespace MetraTecDevices
 {
   /// <summary>
-  /// The reader class for the ASCII based metratec reader
+  /// The base reader class for the metratec readers based on the Ascii protocol
   /// </summary>
-  public abstract class MetratecReaderGen1<T> : MetratecReader<T> where T : RfidTag
+  public abstract class MetratecReaderAscii<T> : MetratecReader<T> where T : RfidTag
   {
     private bool _isCRC = false;
     /// <summary>
@@ -17,39 +17,39 @@ namespace MetraTecDevices
     protected int CurrentAntennaPort { get; set; }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
-    public MetratecReaderGen1(ICommunicationInterface connection) : this(connection, null!, null!)
+    public MetratecReaderAscii(ICommunicationInterface connection) : this(connection, null!, null!)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
-    public MetratecReaderGen1(ICommunicationInterface connection, ILogger logger) : this(connection, null!, logger)
+    public MetratecReaderAscii(ICommunicationInterface connection, ILogger logger) : this(connection, null!, logger)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// /// <param name="id">The reader id</param>
 
-    public MetratecReaderGen1(ICommunicationInterface connection, string id) : this(connection, id, null!)
+    public MetratecReaderAscii(ICommunicationInterface connection, string id) : this(connection, id, null!)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="id">The reader id</param>
     /// <param name="logger">The connection interface</param>
-    public MetratecReaderGen1(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
+    public MetratecReaderAscii(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
     {
     }
 
@@ -94,8 +94,8 @@ namespace MetraTecDevices
     /// Send a command
     /// </summary>
     /// <param name="command">the command</param>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// Thrown if the reader is not connected
+    /// <exception cref="MetratecReaderException">
+    /// if the reader is not connected
     /// </exception>
     protected override void SendCommand(string command)
     {
@@ -118,13 +118,14 @@ namespace MetraTecDevices
     /// <returns>
     /// A string containing the CRC as 4 hex digits
     /// </returns>
-    /// <exception cref="T:System.ArgumentNullException">
-    /// Thrown when the specified <paramref name="toCompute"/>  is  <see langword="null"/>.
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
+    
     internal static string ComputeCRC(string toCompute)
     {
       if (toCompute == null)
-        throw new ArgumentNullException(nameof(toCompute), "The string passed to the CRC computation function was null");
+        throw new MetratecReaderException("The string passed to the CRC computation function was null");
       string result;
       byte[] _konvertierteDaten = System.Text.Encoding.ASCII.GetBytes(toCompute);
       int i, j;
@@ -164,11 +165,16 @@ namespace MetraTecDevices
     /// Configure the reader.
     /// The base implementation must be called after success.
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void PrepareReader()
     {
       bool next = true;
       bool checkSleeping = false;
       ClearResponseBuffer();
+      SetEndOfFrame("\r");
+      _isCRC = false;
       SendCommand("BRK");
       string receive;
       while (next)
@@ -176,7 +182,6 @@ namespace MetraTecDevices
         try
         {
           receive = GetResponse();
-          // System.out.println("Receive: "+receive);
           if (receive.Contains("BRA"))
           {
             next = false;
@@ -203,10 +208,10 @@ namespace MetraTecDevices
           }
           else if (receive.Contains("UCO"))
           {
-            throw new InvalidOperationException("device is not a metraTec rfid reader");
+            throw new MetratecReaderException("device is not a metraTec rfid reader");
           }
         }
-        catch (TimeoutException e)
+        catch (MetratecReaderException)
         {
           if (!checkSleeping)
           {
@@ -215,7 +220,7 @@ namespace MetraTecDevices
           }
           else
           {
-            throw e;
+            throw;
           }
         }
       }
@@ -230,6 +235,9 @@ namespace MetraTecDevices
     /// Enable or Disable end of frame
     /// </summary>
     /// <param name="enable"></param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected void EnableEndOfFrame(bool enable = true)
     {
       if (enable)
@@ -248,6 +256,9 @@ namespace MetraTecDevices
     /// If the reader is used with an antenna multiplexer, you can enable this to get the antenna information in the inventory response.
     /// </summary>
     /// <param name="enable"></param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void EnableAntennaReport(bool enable = true)
     {
       SetCommand($"SAP ARP {(enable ? "ON" : "OFF")}");
@@ -256,6 +267,9 @@ namespace MetraTecDevices
     /// Enable the Cyclic Redundancy Check (CRC) of the computer to reader communication
     /// </summary>
     /// <param name="enable">true for enable</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void EnableCrcCheck(bool enable = true)
     {
       if (enable)
@@ -271,17 +285,25 @@ namespace MetraTecDevices
     }
 
     /// <summary>
+    /// Stop the receive thread and disconnect the reader. Update the status message
+    /// </summary>
+    /// <param name="statusMessage">the reader status message</param>
+    protected override void Disconnect(string statusMessage)
+    {
+      if (Connected)
+      {
+        EnableCrcCheck(false);
+        EnableEndOfFrame(false);
+      }
+      base.Disconnect(statusMessage);
+    }
+
+    /// <summary>
     /// Send a command and check if the response contains "OK"
     /// </summary>
     /// <param name="command">the command to send</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void SetCommand(String command)
     {
@@ -297,11 +319,8 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="command">the command to send</param>
     /// <returns>the command response</returns>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public String GetCommand(String command)
     {
@@ -335,14 +354,12 @@ namespace MetraTecDevices
     /// Send a command and returns the response
     /// </summary>
     /// <param name="command">the command</param>
-    /// <param name="timeout">the response timeout in ms, if not explicitly specified, the default response timeout is used</param>
+    /// <param name="timeout">the response timeout, defaults to 2000ms</param>
     /// <returns></returns>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
-    /// </exception>
+    
     public override string ExecuteCommand(string command, int timeout = 0)
     {
       SendCommand(command);
@@ -350,9 +367,13 @@ namespace MetraTecDevices
       {
         return GetResponse(timeout);
       }
-      catch (TimeoutException e)
+      catch (MetratecReaderException e)
       {
-        throw new TimeoutException($"Response timeout ({command})", e);
+        if(e.Message.Contains("timeout"))
+        {
+          throw new MetratecReaderException($"Response timeout ({command})", e);
+        }
+        throw;
       }
       catch (Exception)
       {
@@ -371,7 +392,7 @@ namespace MetraTecDevices
       if (_isCRC)
       {
         if (response.StartsWith("CCE"))
-          throw new InvalidOperationException($"CRC error - {response}");
+          throw new MetratecCommunicationException($"CRC error - {response}");
         for (int i = 0; i < array.Length; i++)
         {
           if (CheckCRC(array[i]))
@@ -380,7 +401,7 @@ namespace MetraTecDevices
           }
           else
           {
-            throw new InvalidOperationException($"CRC error - {response}");
+            throw new MetratecCommunicationException($"CRC error - {response}");
           }
         }
       }
@@ -394,36 +415,36 @@ namespace MetraTecDevices
     protected abstract void HandleInventoryResponse(string response);
 
     /// <summary>
-    /// Parse the error response and throw a InvalidOperationException with a detailed message
+    /// Parse the error response and throw a MetratecCommunicationException with a detailed message
     /// </summary>
     /// <param name="response"></param>
-    /// <returns>the InvalidOperationException</returns>
-    protected InvalidOperationException ParseErrorResponse(String response)
+    /// <returns>the MetratecReaderException</returns>
+    protected MetratecReaderException ParseErrorResponse(String response)
     {
       switch (response[0..3])
       {
         // class hardware errors - produce exceptions / events in async cases
         case "ARH":
-          return new InvalidOperationException("Hardware error detected: Antenna Reflectivity High. Please check hardware - especially antenna connection and tuning - or call support");
+          return new MetratecReaderException("Hardware error detected: Antenna Reflectivity High. Please check hardware - especially antenna connection and tuning - or call support");
         case "BOD":
-          return new InvalidOperationException("Hardware error detected: Brownout detected. Please check hardware or call support");
+          return new MetratecReaderException("Hardware error detected: Brownout detected. Please check hardware or call support");
         case "BOF":
-          return new InvalidOperationException("Hardware error detected: Buffer overflow. Please check hardware or call support");
+          return new MetratecReaderException("Hardware error detected: Buffer overflow. Please check hardware or call support");
         case "CRT":
-          return new InvalidOperationException("Hardware error detected: Command Receive Timeout. Please check hardware or call support");
+          return new MetratecReaderException("Hardware error detected: Command Receive Timeout. Please check hardware or call support");
         case "EHF":
-          return new InvalidOperationException("Hardware error detected: Hardware Failure. Please check hardware or call support");
+          return new MetratecReaderException("Hardware error detected: Hardware Failure. Please check hardware or call support");
         case "PLE":
-          return new InvalidOperationException("Hardware error detected: PLL Error. Please check hardware or call support");
+          return new MetratecReaderException("Hardware error detected: PLL Error. Please check hardware or call support");
         case "SRT":
-          return new InvalidOperationException("Hardware error detected: Hardware Reset. Please check hardware or call support");
+          return new MetratecReaderException("Hardware error detected: Hardware Reset. Please check hardware or call support");
         case "UER":
-          return new InvalidOperationException($"Hardware error detected: Unknown Error. Please check hardware or call support. Full error string: {response}");
+          return new MetratecReaderException($"Hardware error detected: Unknown Error. Please check hardware or call support. Full error string: {response}");
         case "URE":
-          return new InvalidOperationException("Hardware error detected: UART Receive Error. Please check hardware or call support");
+          return new MetratecReaderException("Hardware error detected: UART Receive Error. Please check hardware or call support");
         // class parser / dll error - produce exceptions / events in async cases
         case "UCO":
-          return new InvalidOperationException("Command not supported");
+          return new MetratecReaderException("Command not supported");
         case "CCE":
         case "DNS":
         case "EDX":
@@ -435,7 +456,7 @@ namespace MetraTecDevices
         case "NSS":
         case "UPA":
         case "WDL":
-          return new InvalidOperationException($"Parser error detected - if using direct mode please check string sent, otherwise contact support. Error message: {response}");
+          return new MetratecReaderException($"Parser error detected - if using direct mode please check string sent, otherwise contact support. Error message: {response}");
         // class tag answer / communication problems - are reported as is
         case "ACE":
         case "CER":
@@ -451,18 +472,21 @@ namespace MetraTecDevices
         default:
           //PLE and SRT can be found anywhere in the string - the others are to be reported as they are
           if (response.Contains("PLE"))
-            return new InvalidOperationException("Hardware error detected: PLL Error. Please check hardware or call support");
+            return new MetratecReaderException("Hardware error detected: PLL Error. Please check hardware or call support");
           if (response.Contains("SRT"))
-            return new InvalidOperationException("Hardware error detected: Hardware Reset. Please check hardware or call support");
+            return new MetratecReaderException("Hardware error detected: Hardware Reset. Please check hardware or call support");
           break;
       }
-      return new InvalidOperationException($"Unhandled Error: {response}");
+      return new MetratecReaderException($"Unhandled Error: {response}");
     }
     /// <summary>
     /// Set the HeartBeatInterval ... override for send the heartbeat command.
     /// The base implementation must be called after success.
     /// </summary>
-    /// <param name="intervalInSec">Heartbeat interval in seconds</param>
+    /// <param name="intervalInSec">Heartbeat interval in seconds. 0 for disable</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void SetHeartBeatInterval(int intervalInSec)
     {
       try
@@ -472,7 +496,7 @@ namespace MetraTecDevices
       }
       catch (Exception e)
       {
-        if (e is InvalidOperationException)
+        if (e is MetratecReaderException)
         {
           // disable heartbeat
           base.SetHeartBeatInterval(0);
@@ -485,17 +509,10 @@ namespace MetraTecDevices
     }
 
     /// <summary>
-    /// Returns the firmware revision ({firmware} {version})
+    /// Update the the firmware name and version ({firmware} {version})
     /// </summary>
-    /// <returns>The firmware revision ({firmware} {version})</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     protected override void UpdateDeviceRevisions()
     {
@@ -537,22 +554,38 @@ namespace MetraTecDevices
     }
 
     /// <returns>the firmware information or 'UCO' if not available</returns>
-    protected virtual string ReadFirmware() {
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected virtual string ReadFirmware()
+    {
       return GetCommand("RFW");
     }
 
     /// <returns>the hardware information or 'UCO' if not available</returns>
-    protected virtual string ReadHardware() {
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected virtual string ReadHardware()
+    {
       return GetCommand("RHW");
     }
 
     /// <returns>the firmware and hardware information or 'UCO' if not available</returns>
-    protected virtual string ReadRevision() {
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected virtual string ReadRevision()
+    {
       return GetCommand("REV");
     }
 
     /// <returns>the serial number</returns>
-    protected virtual string ReadSerialNumber() {
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected virtual string ReadSerialNumber()
+    {
       return GetCommand("RSN");
     }
 
@@ -561,17 +594,8 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="pin">The requested input pin number</param>
     /// <returns>True if the input pin is high, otherwise false</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown in case exceptions occur during PC/reader communication (port busy, reading / writing error, wrong answer from reader) or if reader type does not support the command
-    /// </exception>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override bool GetInput(int pin)
     {
@@ -595,14 +619,8 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="pin">The output pin number</param>
     /// <param name="value">True for set the pin high</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetOutput(int pin, bool value)
     {
@@ -617,6 +635,9 @@ namespace MetraTecDevices
     /// 1..Default, most tag communication errors added.
     /// 2: All tag communication errors including RXE and CRE normally indicating a collision are send.
     /// </param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected void SetVerbosityLevel(int level)
     {
       SetCommand($"VBL {level}");
@@ -626,14 +647,8 @@ namespace MetraTecDevices
     /// Sets the current antenna to use
     /// </summary>
     /// <param name="antennaPort">the antenna to use</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetAntenna(int antennaPort)
     {
@@ -645,14 +660,8 @@ namespace MetraTecDevices
     /// Sets the number of antennas to be multiplexed
     /// </summary>
     /// <param name="antennasToUse">the antenna count to use</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetAntennaMultiplex(int antennasToUse)
     {
@@ -662,11 +671,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Stops the continuous inventory scan.
     /// </summary>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void StopInventory()
     {

@@ -7,7 +7,7 @@ namespace MetraTecDevices
   /// The QuasarLR is an HF long-range RFID reader/writer for demanding industrial applications,
   /// where high reading reliability, high read ranges, and extensive special tag features are needed.
   /// </summary>
-  public class QuasarLR : HfReaderGen1
+  public class QuasarLR : HfReaderAscii
   {
     #region Internal Variables
     internal int _minPower = 500;
@@ -37,15 +37,9 @@ namespace MetraTecDevices
     /// <summary>
     /// Set the reader power
     /// </summary>
-    /// <param name="power">the reader power (500 to 4000 in 250 steps)</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <param name="power">the reader power</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetPower(int power)
     {

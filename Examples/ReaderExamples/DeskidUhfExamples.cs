@@ -9,7 +9,7 @@ namespace ReaderExamples
     public static void InventoryExample()
     {
       // Create the reader instance
-      DeskID_UHF reader = new DeskID_UHF("COM8");
+      DeskID_UHF_v2 reader = new DeskID_UHF_v2("COM8");
 
       // add a reader status listener
       reader.StatusChanged += (s, e) => Console.WriteLine($"Reader status changed to {e.Message} ({e.Status})");
@@ -27,9 +27,9 @@ namespace ReaderExamples
       {
         reader.Connect(2000);
       }
-      catch (TimeoutException)
+      catch (MetratecReaderException e)
       {
-        Console.WriteLine($"Can not connect to reader. Program exits");
+        Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
         return;
       }
       // set reader power
@@ -61,9 +61,9 @@ namespace ReaderExamples
       {
         reader.Connect(2000);
       }
-      catch (TimeoutException)
+      catch (MetratecReaderException e)
       {
-        Console.WriteLine($"Can not connect to reader. Program exits");
+        Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
         return;
       }
       // set reader power

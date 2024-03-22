@@ -1,5 +1,10 @@
 # Changelog
 
+## 3.3
+
+* NFC Reader added
+* Exceptions reworked (A distinction is now made between exceptions for readers and exceptions for transponders)
+
 ## 3.2
 
 * set/get command method now public - for sending special custom command

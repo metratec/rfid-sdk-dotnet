@@ -3,13 +3,14 @@ using System.Collections.Generic;
 using System.Linq;
 using Microsoft.Extensions.Logging;
 using CommunicationInterfaces;
+using System.Threading;
 
 namespace MetraTecDevices
 {
   /// <summary>
-  /// The reader class for the ASCII based metratec reader
+  /// The base reader class for the metratec readers based on the AT protocol
   /// </summary>
-  public abstract class MetratecReaderGen2<T> : MetratecReader<T> where T : RfidTag
+  public abstract class MetratecReaderAT<T> : MetratecReader<T> where T : RfidTag
   {
     /// <summary>
     /// Input change event handler
@@ -28,40 +29,40 @@ namespace MetraTecDevices
     protected bool SingleAntennaInUse { get; set; }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
-    public MetratecReaderGen2(ICommunicationInterface connection) : this(connection, null!, null!)
+    public MetratecReaderAT(ICommunicationInterface connection) : this(connection, null!, null!)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
-    public MetratecReaderGen2(ICommunicationInterface connection, ILogger logger) : this(connection, null!, logger)
+    public MetratecReaderAT(ICommunicationInterface connection, ILogger logger) : this(connection, null!, logger)
     {
 
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// /// <param name="id">The reader id</param>
 
-    public MetratecReaderGen2(ICommunicationInterface connection, string id) : this(connection, id, null!)
+    public MetratecReaderAT(ICommunicationInterface connection, string id) : this(connection, id, null!)
     {
     }
 
     /// <summary>
-    /// The reader class for all Metratec reader
+    /// Create a new instance of the MetratecReaderAT class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="id">The reader id</param>
     /// <param name="logger">The connection interface</param>
-    public MetratecReaderGen2(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
+    public MetratecReaderAT(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
     {
       connection.NewlineString = "\r\n";
     }
@@ -69,6 +70,9 @@ namespace MetraTecDevices
     /// Send a command and check if the response contains "OK"
     /// </summary>
     /// <param name="command">the command to send</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public void SetCommand(String command)
     {
       ExecuteCommand(command);
@@ -79,6 +83,9 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="command">the command to send</param>
     /// <returns>the command response</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     public String GetCommand(String command)
     {
       return ExecuteCommand(command);
@@ -88,28 +95,22 @@ namespace MetraTecDevices
     /// Send a command and returns the response
     /// </summary>
     /// <param name="command">the command</param>
-    /// <param name="timeout">the response timeout in ms, if not explicitly specified, the default response timeout is used</param>
+    /// <param name="timeout">the response timeout, defaults to 2000ms</param>
     /// <returns></returns>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
-    /// </exception>
+
     public override string ExecuteCommand(string command, int timeout = 0)
     {
       SendCommand(command);
       try
       {
-        string resp = GetResponse(timeout);
-        if (!command.StartsWith(resp))
-        {
-          throw new InvalidOperationException($"Wrong response to '{command}' - {resp}");
-        }
+        string resp;
         string? data = null;
         while (true)
         {
-          resp = GetResponse();
+          resp = GetResponse(timeout);
           switch (resp[0])
           {
             case 'O': // OK
@@ -120,22 +121,37 @@ namespace MetraTecDevices
                 int indexFrom = data.IndexOf('<') + 1;
                 int indexTo = data.LastIndexOf('>');
                 data = data[indexFrom..indexTo];
-                throw new InvalidOperationException(data);
+                throw ParseErrorResponse(data);
               }
-              throw new InvalidOperationException($"Reader Error '{command}' - {data}");
+              throw new MetratecReaderException($"Error: {data}");
+            case 'A': // Command Echo
+              if (!command.StartsWith(resp))
+              {
+                throw new MetratecReaderException($"Wrong response to '{command}' - {resp}");
+              }
+              break;
           }
           data = resp;
         }
       }
-      catch (TimeoutException e)
+      catch (MetratecReaderException e)
       {
-        throw new TimeoutException($"Response timeout ({command})", e);
+        if (e.Message.Contains("Response timeout")){
+          throw new MetratecReaderException($"Response timeout ({command})", e);
+        }
+        throw;
       }
       catch (Exception)
       {
         throw;
       }
     }
+    /// <summary>
+    /// Parse the error message and return the reader or transponder exception
+    /// </summary>
+    /// <param name="response">error response</param>
+    /// <returns></returns>
+    protected abstract MetratecReaderException ParseErrorResponse(String response);
 
     /// <summary>
     /// Split a multiline response (and check the crc)
@@ -169,10 +185,8 @@ namespace MetraTecDevices
       if (null == InputChanged)
         return;
       InputChangedEventArgs args = new(inputPin, isHigh, new DateTime());
-      InputChanged(this, args);
+      ThreadPool.QueueUserWorkItem(o => InputChanged.Invoke(this, args));
     }
-
-    private bool _commandReceived = false;
 
     /// <summary>
     /// Process the reader response...override for event check
@@ -186,45 +200,33 @@ namespace MetraTecDevices
         case '\r':
         case '\n':
           return;
-        case 'A': // AT command
-          _commandReceived = true;
-          break;
-        case 'O': // OK
-          _commandReceived = false;
-          break;
-        case 'E': // Error
-          _commandReceived = false;
-          break;
         case '+':
-          if (_commandReceived)
+          // Handle Event
+          switch (response[1])
           {
-            break;
-          }
-          else
-          {
-            // Handle Event
-            switch (response[1])
-            {
-              case 'H': // Heartbeat
-                return;
-              case 'C':
-                // Inventory event
+            case 'H': // Heartbeat
+              return;
+            case 'C':
+              // Inventory event
+              if (response[2] == 'I' || response[2] == 'M') // +CINV +CINVR +CMINV
+              {
                 HandleInventoryEvent(response);
-                break;
-              case 'I':
+                return;
+              }
+              break;
+            case 'I':
+              if (response[2] == 'E') // +IEV:
+              {
                 // input changed
-                if (response.StartsWith("+IEV: "))
-                {
-                  // +IEV: 1,HIGH
-                  // +IEV: 2,LOW
-                  string[] split = SplitLine(response[6..]);
-                  FireInputChangeEvent(int.Parse(split[0]), split[1].ToUpper().Equals("HIGH"));
-                }
-                break;
-            }
-            return;
+                // +IEV: 1,HIGH
+                // +IEV: 2,LOW
+                string[] split = SplitLine(response[6..]);
+                FireInputChangeEvent(int.Parse(split[0]), split[1].ToUpper().Equals("HIGH"));
+                return;
+              }
+              break;
           }
-
+          break;
       }
       base.HandleResponse(response);
     }
@@ -238,6 +240,9 @@ namespace MetraTecDevices
     /// Configure the reader.
     /// The base implementation must be called after success.
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void PrepareReader()
     {
       StopInventory();
@@ -248,57 +253,37 @@ namespace MetraTecDevices
     /// Configure the reader.
     /// The base implementation must be called after success.
     /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
     protected override void ConfigureReader()
     {
       SetHeartBeatInterval(10);
-      EnableInputEvents();
     }
 
-    /// <summary>
-    /// Parse the error response and throw a InvalidOperationException with a detailed message
-    /// </summary>
-    /// <param name="response"></param>
-    /// <returns>the InvalidOperationException</returns>
-    protected InvalidOperationException ParseErrorResponse(String response)
-    {
-      return new InvalidOperationException($"Unhandled Error: {response}");
-    }
     /// <summary>
     /// Set the HeartBeatInterval ... override for send the heartbeat command.
     /// The base implementation must be called after success.
     /// </summary>
-    /// <param name="intervalInSec"></param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <param name="intervalInSec">Heartbeat interval in seconds. 0 for disable</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     protected override void SetHeartBeatInterval(int intervalInSec)
     {
       if (0 > intervalInSec || intervalInSec > 60)
       {
-        throw new InvalidOperationException("Number out of range ([0,60])");
+        throw new MetratecReaderException("Number out of range ([0,60])");
       }
       SetCommand($"AT+HBT={intervalInSec}");
       base.SetHeartBeatInterval(intervalInSec);
     }
 
     /// <summary>
-    /// Returns the firmware revision ({firmware} {version})
+    /// Update the the firmware name and version ({firmware} {version})
     /// </summary>
-    /// <returns>The firmware revision ({firmware} {version})</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     protected override void UpdateDeviceRevisions()
     {
@@ -306,14 +291,20 @@ namespace MetraTecDevices
       // +SW: PULSAR_LR 0100<CR>
       // +HW: PULSAR_LR 0103<CR>
       // +SERIAL: 2020090817420000
-      FirmwareName = responses[0][5..^5];
-      FirmwareVersion = responses[0][^4..];
+      string[] Firmware = responses[0].Split(" ");
+      FirmwareName = Firmware[1];
+      FirmwareVersion = Firmware[^1];
+      // FirmwareName = responses[0][5..^5];
+      // FirmwareVersion = responses[0][^4..];
       FirmwareMajorVersion = int.Parse(FirmwareVersion[..2]);
       FirmwareMinorVersion = int.Parse(FirmwareVersion[2..]);
       if (responses[1].Length > 6)
       {
-        HardwareName = responses[1][5..^5];
-        HardwareVersion = responses[1][^4..];
+        string[] Hardware = responses[1].Split(" ");
+        HardwareName = Hardware[1];
+        HardwareVersion = Hardware[^1];
+        // HardwareName = responses[1][5..^5];
+        // HardwareVersion = responses[1][^4..];
       }
       else
       {
@@ -328,23 +319,14 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="pin">The requested input pin number</param>
     /// <returns>True if the input pin is high, otherwise false</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override bool GetInput(int pin)
     {
       if (1 > pin || pin > 2)
       {
-        throw new InvalidOperationException("Number out of range ([1,2])");
+        throw new MetratecReaderException("Number out of range ([1,2])");
       }
       string[] responses = SplitResponse(GetCommand("AT+IN?"));
       return responses[pin - 1].Contains("HIGH");
@@ -353,14 +335,8 @@ namespace MetraTecDevices
     /// Enable or disable input events
     /// </summary>
     /// <param name="enable">enable/disable</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void EnableInputEvents(bool enable = true)
     {
@@ -371,20 +347,14 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="pin">The output pin number</param>
     /// <param name="value">True for set the pin high</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetOutput(int pin, bool value)
     {
       if (1 > pin || pin > 4)
       {
-        throw new InvalidOperationException("Number out of range ([1,4])");
+        throw new MetratecReaderException("Number out of range ([1,4])");
       }
       string command = "AT+OUT=";
       for (int i = 1; i < 5; i++)
@@ -399,23 +369,14 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="pin">The requested input pin number</param>
     /// <returns>True if the output pin is high, otherwise false</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public bool GetOutput(int pin)
     {
       if (1 > pin || pin > 4)
       {
-        throw new InvalidOperationException("Number out of range ([1,4])");
+        throw new MetratecReaderException("Number out of range ([1,4])");
       }
       string[] responses = SplitResponse(GetCommand("AT+OUT?"));
       return responses[pin - 1].Contains("HIGH");
@@ -425,14 +386,8 @@ namespace MetraTecDevices
     /// Sets the current antenna to use
     /// </summary>
     /// <param name="antennaPort">the antenna to use</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetAntenna(int antennaPort)
     {
@@ -445,14 +400,8 @@ namespace MetraTecDevices
     /// Gets the current used single antenna
     /// </summary>
     /// <returns>the current used single antenna</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public int GetAntenna()
     {
@@ -464,14 +413,8 @@ namespace MetraTecDevices
     /// Sets the number of antennas to be multiplexed
     /// </summary>
     /// <param name="antennasToUse">the antenna count to use</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetAntennaMultiplex(int antennasToUse)
     {
@@ -482,14 +425,8 @@ namespace MetraTecDevices
     /// Sets the antenna multiplex sequence. Set the order in which the antennas are activated.
     /// </summary>
     /// <param name="antennaSequence">the antenna sequence</param>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
-    /// </exception>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public void SetAntennaMultiplex(List<int> antennaSequence)
     {
@@ -500,8 +437,8 @@ namespace MetraTecDevices
     /// Gets the number of antennas to be multiplexed
     /// </summary>
     /// <returns>the number of antennas to be multiplexed</returns>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// If the reader return an error
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public virtual List<int> GetAntennaMultiplex()
     {
@@ -509,7 +446,7 @@ namespace MetraTecDevices
       List<int> sequence = new();
       if (split.Length == 1)
       {
-        // throw new InvalidOperationException("No multiplex sequence activated, please use 'GetAntennaMultiplex' command");
+        // throw new MetratecReaderException("No multiplex sequence activated, please use 'GetAntennaMultiplex' command");
         int antennas = int.Parse(split[0]);
         for (int i = 1; i <= antennas; i++)
         {
@@ -529,11 +466,8 @@ namespace MetraTecDevices
     /// <summary>
     /// Stops the continuous inventory scan.
     /// </summary>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown if the reader does not responding in time
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// /// If the reader is not connected or the connection is lost
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void StopInventory()
     {
@@ -541,11 +475,11 @@ namespace MetraTecDevices
       {
         SetCommand("AT+BINV");
       }
-      catch (InvalidOperationException e)
+      catch (MetratecReaderException e)
       {
         if (!e.ToString().Contains("is not running"))
         {
-          throw e;
+          throw;
         }
       }
     }

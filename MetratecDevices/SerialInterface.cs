@@ -1,4 +1,4 @@
-﻿using System;
+using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
@@ -43,7 +43,7 @@ namespace CommunicationInterfaces
     /// <summary>
     /// The communication baud rate
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
+    /// <exception cref="MetratecCommunicationException">
     /// Thrown in case baud rate setting did not work
     /// </exception>
     public int BaudRate
@@ -58,7 +58,7 @@ namespace CommunicationInterfaces
           }
           catch
           {
-            throw new InvalidOperationException("Couldn't set baud rate");
+            throw new MetratecCommunicationException("Couldn't set baud rate");
           }
         _baudRate = value;
       }
@@ -67,8 +67,8 @@ namespace CommunicationInterfaces
     /// <summary>
     /// The communication receive timeout
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown in case baud rate setting did not work
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown in case the receive timeout can not be set
     /// </exception>
     public int ReceiveTimeout
     {
@@ -82,7 +82,7 @@ namespace CommunicationInterfaces
           }
           catch
           {
-            throw new InvalidOperationException("Couldn't set baud rate");
+            throw new MetratecCommunicationException("Couldn't set baud rate");
           }
         _receiveTimeout = value;
       }
@@ -105,7 +105,7 @@ namespace CommunicationInterfaces
     /// <summary>
     /// Indicates whether data is available for reading
     /// </summary>
-    /// <exception cref="T:System.ObjectDisposedException">
+    /// <exception cref="MetratecCommunicationException">
     /// Thrown when the underlying function reports a broken stream
     /// </exception>
     public bool DataAvailable
@@ -118,7 +118,7 @@ namespace CommunicationInterfaces
         }
         else
         {
-          throw new ObjectDisposedException("Not connected");
+          throw new MetratecCommunicationException("Not connected");
         }
       }
     }
@@ -126,8 +126,8 @@ namespace CommunicationInterfaces
     /// <summary>
     /// The method to connect the communication interface
     /// </summary>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown when the  serial port could not be set up (e.g. wrong parameters, insufficient permissions, invalid port state).
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the serial port could not be set up (e.g. wrong parameters, insufficient permissions, invalid port state).
     /// </exception>
     public void Connect()
     {
@@ -139,13 +139,13 @@ namespace CommunicationInterfaces
       {
         BaudRate = _baudRate,
         DataBits = 8,
-        DtrEnable = false,
+        DtrEnable = true,
         Handshake = Handshake.None,
         Parity = Parity.None,
         PortName = _port,
         ReadTimeout = _receiveTimeout,
         RtsEnable = false,
-        StopBits = StopBits.One,
+        StopBits = StopBits.Two,
         WriteTimeout = 400,
         ReadBufferSize = 1024,
         NewLine = _newLine,
@@ -156,7 +156,7 @@ namespace CommunicationInterfaces
       }
       catch (Exception e)
       {
-        throw new InvalidOperationException("Serial port could not be set up", e);
+        throw new MetratecCommunicationException($"Serial port could not be set up - {e.Message}", e);
       }
     }
 
@@ -208,23 +208,11 @@ namespace CommunicationInterfaces
     /// <param name="count">
     /// The number of characters to write
     /// </param>
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be sent
+    /// </exception>
     public void Send(byte[] data, int offset, int count)
     {
-      if (data == null)
-      {
-        ArgumentNullException _exc = new(nameof(data), "No data array was passed to send");
-        throw _exc;
-      }
-      if ((offset < 0) || (offset > data.Length))
-      {
-        ArgumentNullException _exc = new(nameof(offset), "Offset cannot be less than 0 or larger than the length of DataBytes");
-        throw _exc;
-      }
-      if ((count < 0) || (count + offset > data.Length))
-      {
-        ArgumentNullException _exc = new(nameof(count), "Count cannot be less than zero ot larger than the length of DataBytes when counting from offset");
-        throw _exc;
-      }
       try
       {
         _SerialSocket.DiscardOutBuffer();
@@ -233,11 +221,14 @@ namespace CommunicationInterfaces
       }
       catch (TimeoutException e)
       {
-        throw new InvalidOperationException("Writing to port failed!", e);
+        throw new MetratecCommunicationException("Writing to port failed!", e);
       }
       catch (InvalidOperationException e)
       {
-        throw new ObjectDisposedException("Connection to device broken!", e);
+        throw new MetratecCommunicationException("Connection to device broken!", e);
+      }
+      catch (Exception e){
+        throw new MetratecCommunicationException(e.Message, e);
       }
     }
 
@@ -247,22 +238,11 @@ namespace CommunicationInterfaces
     /// <param name="data">
     /// The data / command sent to the reader
     /// </param>
-    /// <exception cref="T:System.ArgumentNullException">
-    /// Thrown when the specified <paramref name="data"/>  is  <see langword="null"/>.
-    /// </exception>
-    /// <exception cref="T:System.InvalidOperationException">
-    /// Thrown when an exception occurs when trying to access the port (e.g. port closed, timeout).
-    /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// Thrown when the underlying function reports a broken stream
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be sent
     /// </exception>
     public void SendCommand(string data)
     {
-      if (data == null)
-      {
-        ArgumentNullException _exc = new(nameof(data), "No string was given to send");
-        throw _exc;
-      }
       try
       {
         _SerialSocket.DiscardOutBuffer();
@@ -271,11 +251,14 @@ namespace CommunicationInterfaces
       }
       catch (TimeoutException e)
       {
-        throw new InvalidOperationException("Writing to port failed!", e);
+        throw new MetratecCommunicationException("Writing to port failed!", e);
       }
       catch (InvalidOperationException e)
       {
-        throw new ObjectDisposedException("Connection to device broken!", e);
+        throw new MetratecCommunicationException("Connection to device broken!", e);
+      }
+      catch (Exception e){
+        throw new MetratecCommunicationException(e.Message, e);
       }
     }
 
@@ -288,6 +271,12 @@ namespace CommunicationInterfaces
     /// <returns>
     /// The bytes read
     /// </returns>
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be read
+    /// </exception>
+    /// <exception cref="System.TimeoutException">
+    /// If the data could not be read in time
+    /// </exception>
     public byte[] Read(int count)
     {
       byte[] tempBuffer = new byte[count];
@@ -303,7 +292,7 @@ namespace CommunicationInterfaces
         }
         catch (InvalidOperationException e)
         {
-          throw new ObjectDisposedException("Connection to device lost", e);
+          throw new MetratecCommunicationException("Connection to device lost", e);
         }
       }
       return tempBuffer;
@@ -315,11 +304,11 @@ namespace CommunicationInterfaces
     /// <returns>
     /// The string read - without the trailing newline character(s)
     /// </returns>
-    /// <exception cref="T:System.TimeoutException">
-    /// Thrown when no answer is received for more than 400ms.
+    /// <exception cref="MetratecCommunicationException">
+    /// Thrown when the data cannot be read
     /// </exception>
-    /// <exception cref="T:System.ObjectDisposedException">
-    /// Thrown when the underlying function reports a broken stream
+    /// <exception cref="System.TimeoutException">
+    /// If the data could not be read in time
     /// </exception>
     public string ReadResponse()
     {
@@ -329,11 +318,9 @@ namespace CommunicationInterfaces
       }
       catch (ObjectDisposedException e)
       {
-        Disconnect();
-        throw e;
+        throw new MetratecCommunicationException(e.Message, e);
       }
     }
-
 
   }
 }

@@ -15,7 +15,7 @@ Or you can alternatively edit your `.csproj` file:
 
 ```xml
 <ItemGroup>
-  <Reference Include="MetratecDevices, Version=3.2.0.0">
+  <Reference Include="MetratecDevices, Version=3.3.0.0">
     <HintPath>path\to\MetratecDevices.dll</HintPath>
   </Reference>
   <!-- For serial connection -->
@@ -38,8 +38,8 @@ namespace Tests
     {
       try
       {
-        // Create a DeskID iso device object
-        DeskID_ISO deskid = new DeskID_ISO("COM6");
+        // Create a DeskID uhf device object
+        DeskID_UHF_v2 deskid = new DeskID_UHF_v2("COM6");
         // add a reader status listener
         reader.StatusChanged += (s, e) => Console.WriteLine($"Reader status changed to {e.Message} ({e.Status})");
         // add an inventory listener
@@ -56,17 +56,17 @@ namespace Tests
         {
             reader.Connect(2000);
         }
-        catch (TimeoutException)
+        catch (MetratecReaderException e)
         {
-            Console.WriteLine($"Can not connect to reader. Program exits");
-            return;
+          Console.WriteLine($"Can not connect to reader ({e.Message}). Program exits");
+          return;
         }
         // fetches the current inventory - if an inventory listener exists, this method also triggers the listener
-        List<HfTag> tags = reader.GetInventory();
+        List<UhfTag> tags = reader.GetInventory();
         Console.WriteLine($"Current inventory: {tags.Count} Tag(s) found");
-        foreach (HfTag tag in tags)
+        foreach (UhfTag tag in tags)
         {
-            Console.WriteLine($" {tag.TID}");
+          Console.WriteLine($" {tag.EPC}");
         }
 
         reader.StartInventory();
@@ -76,7 +76,7 @@ namespace Tests
         // Disconnect reader
         reader.Disconnect();
       }
-      catch (Exception e)
+      catch (MetratecReaderException e)
       {
         Console.WriteLine(e.ToString());
       }
