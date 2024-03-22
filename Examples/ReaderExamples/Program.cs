@@ -16,7 +16,6 @@ namespace Examples
       // QuasarMxExamples.ReadWriteExample();
       PulsarLrExamples.InventoryExample();
       // PulsarLrExamples.ReadWriteExample();
-      // PulsarLrExamples.CustomImpinjExample();
       
     }
   }

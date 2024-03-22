@@ -1,4 +1,6 @@
-﻿using MetraTecDevices;
+﻿using System;
+using System.Collections.Generic;
+using MetraTecDevices;
 
 namespace ReaderExamples
 {
@@ -74,6 +76,7 @@ namespace ReaderExamples
         Console.ReadLine();
         tags = reader.GetInventory();
       }
+      UhfTag tag = tags[0];
       Console.WriteLine("Try to read address 0...");
       List<UhfTag> resp = reader.ReadTagUsrData(0, 2);
       if (resp.Count == 0)

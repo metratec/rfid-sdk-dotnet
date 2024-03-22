@@ -1,5 +1,8 @@
-using CommunicationInterfaces;
+using System;
+using System.Collections.Generic;
+using System.Linq;
 using Microsoft.Extensions.Logging;
+using CommunicationInterfaces;
 
 namespace MetraTecDevices
 {
@@ -66,7 +69,7 @@ namespace MetraTecDevices
     /// Send a command and check if the response contains "OK"
     /// </summary>
     /// <param name="command">the command to send</param>
-    protected void SetCommand(String command)
+    public void SetCommand(String command)
     {
       ExecuteCommand(command);
     }
@@ -76,7 +79,7 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="command">the command to send</param>
     /// <returns>the command response</returns>
-    protected String GetCommand(String command)
+    public String GetCommand(String command)
     {
       return ExecuteCommand(command);
     }
@@ -85,7 +88,7 @@ namespace MetraTecDevices
     /// Send a command and returns the response
     /// </summary>
     /// <param name="command">the command</param>
-    /// <param name="timeout">the response timeout, defaults to 2000ms</param>
+    /// <param name="timeout">the response timeout in ms, if not explicitly specified, the default response timeout is used</param>
     /// <returns></returns>
     /// <exception cref="T:System.TimeoutException">
     /// Thrown if the reader does not responding in time
@@ -93,12 +96,12 @@ namespace MetraTecDevices
     /// <exception cref="T:System.ObjectDisposedException">
     /// If the reader is not connected or the connection is lost
     /// </exception>
-    public override string ExecuteCommand(string command, int timeout = 10000)
+    public override string ExecuteCommand(string command, int timeout = 0)
     {
       SendCommand(command);
       try
       {
-        string resp = GetResponse();
+        string resp = GetResponse(timeout);
         if (!command.StartsWith(resp))
         {
           throw new InvalidOperationException($"Wrong response to '{command}' - {resp}");

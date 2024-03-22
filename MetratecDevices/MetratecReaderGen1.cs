@@ -1,3 +1,4 @@
+using System;
 using CommunicationInterfaces;
 using Microsoft.Extensions.Logging;
 
@@ -282,7 +283,7 @@ namespace MetraTecDevices
     /// <exception cref="T:System.ObjectDisposedException">
     /// If the reader is not connected or the connection is lost
     /// </exception>
-    protected void SetCommand(String command)
+    public void SetCommand(String command)
     {
       string response = ExecuteCommand(command);
       if (!response.Contains("OK"))
@@ -334,7 +335,7 @@ namespace MetraTecDevices
     /// Send a command and returns the response
     /// </summary>
     /// <param name="command">the command</param>
-    /// <param name="timeout">the response timeout, defaults to 2000ms</param>
+    /// <param name="timeout">the response timeout in ms, if not explicitly specified, the default response timeout is used</param>
     /// <returns></returns>
     /// <exception cref="T:System.TimeoutException">
     /// Thrown if the reader does not responding in time
@@ -342,12 +343,12 @@ namespace MetraTecDevices
     /// <exception cref="T:System.ObjectDisposedException">
     /// If the reader is not connected or the connection is lost
     /// </exception>
-    public override string ExecuteCommand(string command, int timeout = 10000)
+    public override string ExecuteCommand(string command, int timeout = 0)
     {
       SendCommand(command);
       try
       {
-        return GetResponse();
+        return GetResponse(timeout);
       }
       catch (TimeoutException e)
       {
@@ -498,7 +499,7 @@ namespace MetraTecDevices
     /// </exception>
     protected override void UpdateDeviceRevisions()
     {
-      string response = GetCommand("RFW");
+      string response = ReadFirmware();
       if (response.Length > 3)
       {
         FirmwareName = response[..^4].Replace(" ", "");
@@ -506,14 +507,14 @@ namespace MetraTecDevices
         FirmwareMinorVersion = int.Parse(response.Substring(response.Length - 2, 2));
         FirmwareVersion = $"{FirmwareMajorVersion}.{FirmwareMinorVersion}";
 
-        response = GetCommand("RHW");
+        response = ReadHardware();
         HardwareName = response[..^4];
         HardwareVersion = int.Parse(response.Substring(response.Length - 4, 2)) + "." +
                           int.Parse(response.Substring(response.Length - 2, 2));
       }
       else
       {
-        response = GetCommand("REV");
+        response = ReadRevision();
         if (response.Length > 3)
         {
           // return response.Substring(0, response.Length - 8) + response.Substring(response.Length - 4, 4);
@@ -532,7 +533,27 @@ namespace MetraTecDevices
           HardwareVersion = "0.0";
         }
       }
-      SerialNumber = GetCommand("RSN");
+      SerialNumber = ReadSerialNumber();
+    }
+
+    /// <returns>the firmware information or 'UCO' if not available</returns>
+    protected virtual string ReadFirmware() {
+      return GetCommand("RFW");
+    }
+
+    /// <returns>the hardware information or 'UCO' if not available</returns>
+    protected virtual string ReadHardware() {
+      return GetCommand("RHW");
+    }
+
+    /// <returns>the firmware and hardware information or 'UCO' if not available</returns>
+    protected virtual string ReadRevision() {
+      return GetCommand("REV");
+    }
+
+    /// <returns>the serial number</returns>
+    protected virtual string ReadSerialNumber() {
+      return GetCommand("RSN");
     }
 
     /// <summary>

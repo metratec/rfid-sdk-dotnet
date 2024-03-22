@@ -1,7 +1,10 @@
-using CommunicationInterfaces;
+using System;
+using System.Threading;
+using System.Collections.Generic;
+using System.Collections.Concurrent;
 using Microsoft.Extensions.Logging;
 using Microsoft.Extensions.Logging.Abstractions;
-using System.Collections.Concurrent;
+using CommunicationInterfaces;
 
 namespace MetraTecDevices
 {
@@ -50,7 +53,7 @@ namespace MetraTecDevices
     /// <value>Fire also empty inventories. Defaults to false</value>
     public bool FireEmptyInventories { get; set; }
     /// <summary>
-    /// Reader response timeout
+    /// Reader default response timeout
     /// </summary>
     /// <value>Response timeout in millisecond. Defaults to 2000</value>
     public int ResponseTimeout { get; set; }
@@ -181,6 +184,9 @@ namespace MetraTecDevices
     /// </summary>
     public void Disconnect()
     {
+      if(_status >= 1){
+        StopInventory();
+      }
       Disconnect("Disconnected");
     }
 
@@ -228,6 +234,7 @@ namespace MetraTecDevices
     /// <summary>
     /// Returns the next response
     /// </summary>
+    /// <param name="timeout">the response timeout in ms, if not explicitly specified, the default response timeout is used</param>
     /// <returns></returns>
     /// <exception cref="T:System.TimeoutException">
     /// Thrown if the reader does not responding in time
@@ -235,11 +242,12 @@ namespace MetraTecDevices
     /// <exception cref="T:System.ObjectDisposedException">
     /// If the reader is not connected or the connection is lost
     /// </exception>
-    protected virtual string GetResponse()
+    protected virtual string GetResponse(int timeout = 0)
     {
       string response;
+      int responseTimeout = 0 != timeout ? timeout : ResponseTimeout;
       DateTime start = DateTime.Now;
-      while (DateTime.Now.Subtract(start).TotalMilliseconds < ResponseTimeout)
+      while (DateTime.Now.Subtract(start).TotalMilliseconds < responseTimeout)
       {
         if (_responses.IsEmpty)
         {

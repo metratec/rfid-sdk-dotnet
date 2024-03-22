@@ -1,4 +1,6 @@
-﻿using MetraTecDevices;
+﻿using System;
+using System.Collections.Generic;
+using MetraTecDevices;
 
 namespace ReaderExamples
 {

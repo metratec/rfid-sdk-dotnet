@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.2
+
+* set/get command method now public - for sending special custom command
+
 ## 3.1.1
 
 * uhf gen2 inventory settings updated (FastStart added)
