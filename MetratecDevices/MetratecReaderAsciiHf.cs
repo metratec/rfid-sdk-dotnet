@@ -12,6 +12,9 @@ namespace MetraTecDevices
   /// </summary>
   public class HfReaderAscii : MetratecReaderAscii<HfTag>
   {
+
+    #region Properties
+
     private List<HfTag>? _lastInventory = null;
     private bool _continuousStarted = false;
 
@@ -19,186 +22,42 @@ namespace MetraTecDevices
     // private RfInterfaceMode _mode = RfInterfaceMode.SingleSubcarrier_100percentASK;
 
     private bool _isSingleSubcarrier = true;
-    /// <summary>
-    /// Create a new instance of the HfReaderAscii class.
-    /// </summary>
-    /// <param name="connection">The connection interface</param>
-    public HfReaderAscii(ICommunicationInterface connection) : base(connection)
-    {
-    }
 
-    /// <summary>
-    /// Create a new instance of the HfReaderAscii class.
-    /// </summary>
-    /// <param name="connection">The connection interface</param>
-    /// <param name="logger">The connection interface</param>
-    public HfReaderAscii(ICommunicationInterface connection, ILogger logger) : base(connection, logger)
-    {
-    }
+    #endregion Properties
 
-    /// <summary>
-    /// Create a new instance of the HfReaderAscii class.
-    /// </summary>
-    /// <param name="connection">The connection interface</param>
-    /// <param name="id">The reader id</param>
-    public HfReaderAscii(ICommunicationInterface connection, string id) : base(connection, id)
-    {
-    }
-
-    /// <summary>
-    /// Create a new instance of the HfReaderAscii class.
-    /// </summary>
-    /// <param name="connection">The connection interface</param>
-    /// <param name="id">The reader id</param>
-    /// <param name="logger">The connection interface</param>
-    public HfReaderAscii(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
-    {
-    }
-
-    /// <summary>
-    /// Configure the reader.
-    /// The base implementation must be called after success.
-    /// </summary>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected override void ConfigureReader()
-    {
-      SetVerbosityLevel(2);
-      SetCommand("MOD 156");
-      EnableRfInterface();
-    }
-
-    /// <summary>
-    /// Process the reader response...override for event check
-    /// The base implementation must be called after success.
-    /// </summary>
-    /// <param name="response">a reader response</param>
-    protected override void HandleResponse(string response)
-    {
-      // check for special hf events
-      if (response[0] == 'T' && (response[1] == 'D' || response[1] == 'N'))
-      {
-        // TDT TND
-        HandleRequestResponse(response);
-        return;
-      }
-      base.HandleResponse(response);
-    }
-
-    /// <summary>
-    /// Handle an inventory response
-    /// </summary>
-    /// <param name="response"></param>
-    protected override void HandleInventoryResponse(string response)
-    {
-      Logger.LogTrace("Handle Inventory - {}", response);
-      string[] answers = SplitResponse(response);
-      DateTime timestamp = DateTime.Now;
-      List<HfTag> tags = new();
-      for (int i = 0; i < answers.Length; i++)
-      {
-        String s = answers[i];
-        if (s.Length <= 3)
-        {
-          /*
-           * check error codes - if it is a single tag error - ignore the error for this tag Error
-           * codes to ignore: CER, FLE, RDL, TCE, TOE (see 'ISO 15693 Protocol Guide', Chapter Error
-           * Codes)
-           */
-          if (s.StartsWith("CER") || s.StartsWith("RXE") || s.StartsWith("TOE") || s.StartsWith("FLE")
-              || s.StartsWith("RDL") || s.StartsWith("TCE"))
-          {
-            Logger.LogDebug("receive inventory error code - {}", s);
-          }
-          else
-          {
-            throw new MetratecReaderException(s);
-          }
-        }
-        else if (s.StartsWith("ARP"))
-        {
-          CurrentAntennaPort = int.Parse(s[4..]);
-          foreach (HfTag tag in tags)
-          {
-            tag.Antenna = CurrentAntennaPort;
-          }
-          continue;
-        }
-        else if (s.StartsWith("IVF"))
-        {
-          break;
-        }
-        else
-        {
-          tags.Add(new HfTag(s, timestamp, CurrentAntennaPort));
-        }
-      }
-      _lastInventory = tags;
-      FireInventoryEvent(_lastInventory, _continuousStarted);
-    }
+    #region Event Handlers
 
     /// <summary>
     /// request response event handler
     /// </summary>
     public event EventHandler<NewRequestResponseArgs>? NewRequestResponse;
 
+    #endregion Event Handlers
+
+    #region Constructor
+
     /// <summary>
-    /// Fire a inventory event
+    /// Create a new instance of the HfReaderAscii class.
     /// </summary>
-    /// <param name="tag">the founded tags</param>
-    protected void FireRequestResponse(HfTag tag)
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public HfReaderAscii(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
     {
-      if (null == NewRequestResponse)
-        return;
-      NewRequestResponseArgs args = new(tag, new DateTime());
-      ThreadPool.QueueUserWorkItem(o => NewRequestResponse.Invoke(this, args));
     }
 
-    private void HandleRequestResponse(string response)
-    {
-      // TDT<CR>0011112222B7DD<CR>COK<CR>NCL<CR>
-      // TNR<CR>
-      Logger.LogTrace("Handle request response - {}", response);
-      string[] answers = SplitResponse(response);
-      HfTag tag = new(DateTime.Now, CurrentAntennaPort);
-      if (answers.Last().StartsWith("ARP"))
-      {
-        tag.Antenna = int.Parse(answers.Last()[4..]);
-        Array.Resize(ref answers, answers.Length - 1);
-      }
-      if (answers.Last().Equals("NCL"))
-      {
-        if (answers[2].Equals("COK"))
-        {
-          if (answers[1].StartsWith("00"))
-          {
-            tag.Data = answers[1][2..^4];
-          }
-          else
-          {
-            tag.HasError = true;
-            tag.Message = $"TEC {answers[1][2..4]}";
-          }
-        }
-        else
-        {
-          tag.HasError = true;
-          tag.Message = answers[2];
-        }
-      }
-      else
-      {
-        // CDT - Collision detect
-        // TNR - Tag not responding - no tag
-        // RDL - read data too long
-        tag.HasError = true;
-        tag.Message = answers.Last();
-      }
-      _lastRequest = tag;
-      FireRequestResponse(_lastRequest);
-    }
+    #endregion Constructor
 
+    #region Public Methods
+
+    #region Reader Settings
+    /// <inheritdoc/>
+    public override void EnableCrcCheck(bool enable = true)
+    {
+      base.EnableCrcCheck(enable);
+      // update input event setting
+      EnableInputEvents();
+    }
     /// <summary>
     /// Set the reader power
     /// </summary>
@@ -217,7 +76,49 @@ namespace MetraTecDevices
         throw new MetratecReaderException($"Firmware Version {FirmwareVersion} does not support power settings");
       }
     }
+    /// <summary>
+    /// Enable the rf interface 
+    /// </summary>
+    /// <param name="subCarrier">rf interface sub carrier</param>
+    /// <param name="modulationDepth">rf interface modulation depth</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void EnableRfInterface(SubCarrier subCarrier = SubCarrier.SINGLE, ModulationDepth modulationDepth = ModulationDepth.Depth100)
+    {
+      string command = "SRI ";
+      switch (subCarrier)
+      {
+        case SubCarrier.SINGLE:
+          command += "SS ";
+          break;
+        case SubCarrier.DOUBLE:
+          command += "DS ";
+          break;
+        default:
+          throw new MetratecReaderException($"Unhandled mode sub carrier {subCarrier}");
+      }
+      switch (modulationDepth)
+      {
+        case ModulationDepth.Depth10:
+          command += "10";
+          if (subCarrier == SubCarrier.DOUBLE && FirmwareMajorVersion < 3)
+          {
+            throw new MetratecReaderException($"Double subcarrier and modulation depth 10 is not supported by Firmware less than 3.0");
+          }
+          break;
+        case ModulationDepth.Depth100:
+          command += "100";
+          break;
+        default:
+          throw new MetratecReaderException($"Unhandled mode modulation depth {modulationDepth}");
+      }
+      SetCommand(command);
+      // _mode = mode;
+    }
+    #endregion Reader Settings
 
+    #region Tag Commands
     /// <summary>
     /// Scan for the current inventory
     /// </summary>
@@ -253,7 +154,7 @@ namespace MetraTecDevices
     public List<HfTag> GetInventory(bool singleTag, bool onlyNewTags, int afi = 0)
     {
       _lastInventory = null;
-      SendCommand($"INV{(singleTag ? " SSL" : "")}{(onlyNewTags ? " ONT" : "")}{(afi != 0 ? $"AFI {afi:X2}" : "")}");
+      SendCommand($"INV{(singleTag ? " SSL" : "")}{(onlyNewTags ? " ONT" : "")}{(afi != 0 ? $" AFI {afi:X2}" : "")}");
       DateTime start = DateTime.Now;
       while (DateTime.Now.Subtract(start).TotalMilliseconds < ResponseTimeout)
       {
@@ -328,47 +229,6 @@ namespace MetraTecDevices
       _continuousStarted = true;
     }
     /// <summary>
-    /// Enable the rf interface 
-    /// </summary>
-    /// <param name="subCarrier">rf interface sub carrier</param>
-    /// <param name="modulationDepth">rf interface modulation depth</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public void EnableRfInterface(SubCarrier subCarrier = SubCarrier.SINGLE, ModulationDepth modulationDepth = ModulationDepth.Depth100)
-    {
-      string command = "SRI ";
-      switch (subCarrier)
-      {
-        case SubCarrier.SINGLE:
-          command += "SS ";
-          break;
-        case SubCarrier.DOUBLE:
-          command += "DS ";
-          break;
-        default:
-          throw new MetratecReaderException($"Unhandled mode sub carrier {subCarrier}");
-      }
-      switch (modulationDepth)
-      {
-        case ModulationDepth.Depth10:
-          command += "10";
-          if (subCarrier == SubCarrier.DOUBLE && FirmwareMajorVersion < 3)
-          {
-            throw new MetratecReaderException($"Double subcarrier and modulation depth 10 is not supported by Firmware less than 3.0");
-          }
-          break;
-        case ModulationDepth.Depth100:
-          command += "100";
-          break;
-        default:
-          throw new MetratecReaderException($"Unhandled mode modulation depth {modulationDepth}");
-      }
-      SetCommand(command);
-      // _mode = mode;
-    }
-
-    /// <summary>
     /// Read the transponder information
     /// </summary>
     /// <param name="tagId">the optional tag id, if not set, the currently available tag is write</param>
@@ -412,7 +272,6 @@ namespace MetraTecDevices
       }
       return info;
     }
-
     /// <summary>
     /// Read a data block of a transponder as hex
     /// </summary>
@@ -435,7 +294,6 @@ namespace MetraTecDevices
       }
       return tag.Data ?? "";
     }
-
     /// <summary>
     /// Read the data of a transponder
     /// </summary>
@@ -465,7 +323,7 @@ namespace MetraTecDevices
       {
         numberOfFollowingBlock = 0;
       }
-      HfTag tag =  SendRequest("REQ", "23", $"{startBlock:X2}{numberOfFollowingBlock:X2}", tagId, optionFlag);
+      HfTag tag = SendRequest("REQ", "23", $"{startBlock:X2}{numberOfFollowingBlock:X2}", tagId, optionFlag);
       if (tag.HasError)
       {
         throw new TransponderException(tag.Message);
@@ -493,7 +351,6 @@ namespace MetraTecDevices
         throw new TransponderException(tag.Message);
       }
     }
-
     /// <summary>
     /// Write a data to a transponder
     /// </summary>
@@ -524,10 +381,10 @@ namespace MetraTecDevices
           try
           {
             WriteBlock(startBlock + i, data.Substring(startBlock + hexDataSize * i, hexDataSize), tagId, optionFlag);
-          } 
+          }
           catch (TransponderException)
           {
-            if (n >= 1) 
+            if (n >= 1)
             {
               // second retry has also an error
               throw;
@@ -569,13 +426,12 @@ namespace MetraTecDevices
     /// </exception>
     public void LockTagAFI(string? tagId, bool optionFlag = false)
     {
-      HfTag tag =  SendRequest("WRQ", "28", null, tagId, optionFlag);
+      HfTag tag = SendRequest("WRQ", "28", null, tagId, optionFlag);
       if (tag.HasError)
       {
         throw new TransponderException(tag.Message);
       }
     }
-
     /// <summary>
     /// Write the transponder data storage format identifier
     /// </summary>
@@ -590,7 +446,7 @@ namespace MetraTecDevices
     /// </exception>
     public void WriteTagDSFID(int dsfid, string? tagId, bool optionFlag = false)
     {
-      HfTag tag =  SendRequest("WRQ", "29", dsfid.ToString("X2"), tagId, optionFlag);
+      HfTag tag = SendRequest("WRQ", "29", dsfid.ToString("X2"), tagId, optionFlag);
       if (tag.HasError)
       {
         throw new TransponderException(tag.Message);
@@ -609,13 +465,145 @@ namespace MetraTecDevices
     /// </exception>
     public void LockTagDSFID(string? tagId, bool optionFlag = false)
     {
-      HfTag tag =  SendRequest("WRQ", "2A", null, tagId, optionFlag);
+      HfTag tag = SendRequest("WRQ", "2A", null, tagId, optionFlag);
       if (tag.HasError)
       {
         throw new TransponderException(tag.Message);
       }
     }
+    #endregion Tag Commands
 
+    #endregion Public Methods
+
+    #region Protected Methods
+
+    /// <summary>
+    /// Configure the reader.
+    /// The base implementation must be called after success.
+    /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected override void ConfigureReader()
+    {
+      SetVerbosityLevel(2);
+      SetCommand("MOD 156");
+      EnableRfInterface();
+      EnableInputEvents();
+    }
+    /// <summary>
+    /// Process the reader response...override for event check
+    /// /// The base implementation must be called after success.
+    /// </summary>
+    /// <param name="response">a reader response</param>
+    protected override void HandleResponse(string response)
+    {
+      switch (response[0])
+      {
+        case 'T':
+          // check for special hf events
+          if (response[1] == 'D' || response[1] == 'N')
+          {
+            // TDT or TND
+            HandleRequestResponse(response);
+            return;
+          }
+          break;
+      }
+      base.HandleResponse(response);
+    }
+
+    /// <summary>
+    /// Handle an inventory response
+    /// </summary>
+    /// <param name="response"></param>
+    protected override void HandleInventoryResponse(string response)
+    {
+      Logger.LogTrace("Handle Inventory - {}", response);
+      string[] answers = SplitResponse(response);
+      DateTime timestamp = DateTime.Now;
+      List<HfTag> tags = new();
+      for (int i = 0; i < answers.Length; i++)
+      {
+        String s = answers[i];
+        if (s.Length <= 3)
+        {
+          /*
+           * check error codes - if it is a single tag error - ignore the error for this tag Error
+           * codes to ignore: CER, FLE, RDL, TCE, TOE (see 'ISO 15693 Protocol Guide', Chapter Error
+           * Codes)
+           */
+          if (s.StartsWith("CER") || s.StartsWith("RXE") || s.StartsWith("TOE") || s.StartsWith("FLE")
+              || s.StartsWith("RDL") || s.StartsWith("TCE"))
+          {
+            Logger.LogDebug("receive inventory error code - {}", s);
+          }
+          else
+          {
+            throw new MetratecReaderException(s);
+          }
+        }
+        else if (s.StartsWith("ARP"))
+        {
+          CurrentAntennaPort = int.Parse(s[4..]);
+          foreach (HfTag tag in tags)
+          {
+            tag.Antenna = CurrentAntennaPort;
+          }
+          continue;
+        }
+        else if (s.StartsWith("IVF"))
+        {
+          break;
+        }
+        else
+        {
+          tags.Add(new HfTag(s, timestamp, CurrentAntennaPort));
+        }
+      }
+      _lastInventory = tags;
+      FireInventoryEvent(_lastInventory, _continuousStarted);
+    }
+    /// <summary>
+    /// prepare the input for event handling
+    /// </summary>
+    /// <param name="enable"></param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected virtual void EnableInputEvents(bool enable = true)
+    {
+      try
+      {
+        if (enable)
+        {
+          SetCommand("EGC 0 #SPIN0#RIP 0" + (IsCRC ? " 640F" : ""));
+          SetCommand("EGC 0 BOTH");
+          SetCommand("EGC 1 #SPIN1#RIP 1" + (IsCRC ? " FC68" : ""));
+          SetCommand("EGC 1 BOTH");
+        }
+        else
+        {
+          SetCommand("EGC 0 NONE");
+          SetCommand("EGC 1 NONE");
+        }
+      }
+      catch (MetratecReaderException)
+      {
+        Logger.LogDebug("Inputs events disabled");
+      }
+    }
+    /// <summary>
+    /// Fire a inventory event
+    /// </summary>
+    /// <param name="tag">the founded tags</param>
+    protected void FireRequestResponse(HfTag tag)
+    {
+      if (null == NewRequestResponse)
+        return;
+      NewRequestResponseArgs args = new(tag, new DateTime());
+      ThreadPool.QueueUserWorkItem(o => NewRequestResponse.Invoke(this, args));
+    }
     /// <summary>
     /// Send a request to the transponder
     /// </summary>
@@ -658,9 +646,58 @@ namespace MetraTecDevices
         throw new MetratecReaderException("Not connected");
       throw new MetratecReaderException("Response timeout");
     }
+    #endregion Protected Methods
 
+    #region Private Methods
 
+    private void HandleRequestResponse(string response)
+    {
+      // TDT<CR>0011112222B7DD<CR>COK<CR>NCL<CR>
+      // TNR<CR>
+      Logger.LogTrace("Handle request response - {}", response);
+      string[] answers = SplitResponse(response);
+      HfTag tag = new(DateTime.Now, CurrentAntennaPort);
+      if (answers.Last().StartsWith("ARP"))
+      {
+        tag.Antenna = int.Parse(answers.Last()[4..]);
+        Array.Resize(ref answers, answers.Length - 1);
+      }
+      if (answers.Last().Equals("NCL"))
+      {
+        if (answers[2].Equals("COK"))
+        {
+          if (answers[1].StartsWith("00"))
+          {
+            tag.Data = answers[1][2..^4];
+          }
+          else
+          {
+            tag.HasError = true;
+            tag.Message = $"TEC {answers[1][2..4]}";
+          }
+        }
+        else
+        {
+          tag.HasError = true;
+          tag.Message = answers[2];
+        }
+      }
+      else
+      {
+        // CDT - Collision detect
+        // TNR - Tag not responding - no tag
+        // RDL - read data too long
+        tag.HasError = true;
+        tag.Message = answers.Last();
+      }
+      _lastRequest = tag;
+      FireRequestResponse(_lastRequest);
+    }
+
+    #endregion Private Methods
   }
+
+  #region Configuration Enums
 
   /// <summary>
   /// Used RF interface sub carrier
@@ -691,33 +728,9 @@ namespace MetraTecDevices
     Depth100
   }
 
+  #endregion Configuration Enums
 
-  /// <summary>
-  /// new inventory event arguments
-  /// </summary>
-  public class NewRequestResponseArgs : EventArgs
-  {
-    /// <summary>
-    /// Inventory event
-    /// </summary>
-    /// <param name="tag">the transponder with the response</param>
-    /// <param name="timestamp">The change timestamp</param>
-    public NewRequestResponseArgs(HfTag tag, DateTime timestamp)
-    {
-      Tag = tag;
-      Timestamp = timestamp;
-    }
-    /// <summary>
-    /// The new status
-    /// </summary>
-    /// <value></value>
-    public HfTag Tag { get; }
-    /// <summary>
-    /// The change timestamp
-    /// </summary>
-    /// <value></value>
-    public DateTime Timestamp { get; }
-  }
+  #region Response Classes
 
   /// <summary>
   /// HF tag information
@@ -755,4 +768,6 @@ namespace MetraTecDevices
     /// <value></value>
     public int ICReference { get; internal set; }
   }
+
+  #endregion Response Classes
 }

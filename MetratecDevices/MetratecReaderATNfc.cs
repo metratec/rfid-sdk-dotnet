@@ -10,87 +10,31 @@ namespace MetraTecDevices
   /// </summary>
   public class NfcReader : MetratecReaderAT<HfTag>
   {
+    #region Properties
+
     private InventorySettingsNfc? _inventorySettings;
     private NfcReaderMode? _mode;
     private string _selectedTag = "";
-    /// <summary>
-    /// Create a new instance of the NfcReader class.
-    /// </summary>
-    /// <param name="connection">The connection interface</param>
-    public NfcReader(ICommunicationInterface connection) : base(connection)
-    {
-    }
+
+    #endregion
+
+    #region Constructor
 
     /// <summary>
     /// Create a new instance of the NfcReader class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
-    public NfcReader(ICommunicationInterface connection, ILogger logger) : base(connection, logger)
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public NfcReader(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
     {
     }
 
-    /// <summary>
-    /// Create a new instance of the NfcReader class.
-    /// </summary>
-    /// <param name="connection">The connection interface</param>
-    /// /// <param name="id">The reader id</param>
+    #endregion
 
-    public NfcReader(ICommunicationInterface connection, string id) : base(connection, id)
-    {
-    }
+    #region Public Methods
 
-    /// <summary>
-    /// Create a new instance of the NfcReader class.
-    /// </summary>
-    /// <param name="connection">The connection interface</param>
-    /// <param name="id">The reader id</param>
-    /// <param name="logger">The connection interface</param>
-    public NfcReader(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
-    {
-    }
-
-
-    /// <summary>
-    /// Parse the inventory event (+CINV, +CMINV, +CINVR)
-    /// </summary>
-    /// <param name="response"></param>
-    protected override void HandleInventoryEvent(string response)
-    {
-      List<HfTag> tags = ParseInventory(response, "+CINV: ".Length);
-      FireInventoryEvent(tags, true);
-    }
-
-    /// <summary>
-    /// Configure the reader.
-    /// The base implementation must be called after success.
-    /// </summary>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected override void PrepareReader()
-    {
-      //TODO
-      base.PrepareReader();
-    }
-
-    /// <summary>
-    /// Configure the reader.
-    /// The base implementation must be called after success.
-    /// </summary>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected override void ConfigureReader()
-    {
-      base.ConfigureReader();
-      GetInventorySettings();
-      GetMode();
-    }
-
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// Feedback
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    #region Feedback
 
     /// <summary>
     /// Play a preconfigured sequence.
@@ -104,7 +48,7 @@ namespace MetraTecDevices
       SetCommand($"AT+FDB={feedback}");
     }
     /// <summary>
-    /// 
+    /// This command is used to play a custom feedback sequence.
     /// </summary>
     /// <param name="notes">Encoded notes to be played. A note is always encoded by its name written as a capital letter
     /// and octave e.g. C4 or D5. Half-tone steps are encoded by adding a s or b to the note. For example Ds4 or
@@ -130,9 +74,21 @@ namespace MetraTecDevices
       SetCommand($"AT+FRQ={frequency}");
     }
 
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// RFID Settings
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    /// <summary>
+    /// Enable or Disable the start up sound. 
+    /// </summary>
+    /// <param name="enable"></param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void EnableStartUpSound(bool enable = true)
+    {
+      SetCommand($"AT+SUS={(enable ? '1' : '0')}");
+    }
+
+    #endregion Feedback
+
+    #region Reader Settings
 
     /// <summary>
     /// Enable the rf interface 
@@ -231,9 +187,9 @@ namespace MetraTecDevices
       throw new MetratecReaderException("Command not supported");
     }
 
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    ///Tag Operation
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    #endregion Reader Settings
+
+    #region Tag Operation
 
     /// <summary>
     /// Return the current inventory settings
@@ -538,9 +494,9 @@ namespace MetraTecDevices
       return tags;
     }
 
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// ISO15693 Commands
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    #endregion Tag Operation
+
+    #region ISO15693 Commands
 
     /// <summary>
     /// Send an ISO15693 read request with read-alike timing to a card.
@@ -588,7 +544,7 @@ namespace MetraTecDevices
     /// An AFI of 0 is treated as no AFI set. If set to non-zero only transponders with
     /// the same AFI will respond in a inventory.
     /// </summary>
-    /// <param name="afi">Application Family Identifier as hex string [0..255]</param>
+    /// <param name="afi">Application Family Identifier [0..255]</param>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
@@ -664,13 +620,11 @@ namespace MetraTecDevices
       SetCommand($"AT+LDSFID");
     }
 
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// ISO14A Commands
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    #endregion ISO15693 Commands
 
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// Generic ISO14A Commands
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    #region ISO14A Commands
+
+    #region Generic ISO14A Commands
 
     /// <summary>
     /// Send a raw ISO 14A request to a previously selected tag
@@ -697,9 +651,9 @@ namespace MetraTecDevices
       return response.Length == 0 ? response : response[6..];
     }
 
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// Generic ISO14A Commands
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    #endregion Generic ISO14A Commands
+
+    #region Mifare Classic Commands
 
     /// <summary>
     /// Authenticate command for Mifare classic cards to access memory blocks.
@@ -780,9 +734,9 @@ namespace MetraTecDevices
     public void WriteMifareClassicKeys(int block, string keyA, string keyB, string accessBits = "")
     {
       if (accessBits.Length == 0)
-        SetCommand($"AT+SKO={block},{keyA},{keyB}");
+        SetCommand($"AT+SKO={block},{keyA.ToUpper()},{keyB.ToUpper()}");
       else
-        SetCommand($"AT+SKA={block},{keyA},{keyB},{accessBits}");
+        SetCommand($"AT+SKA={block},{keyA.ToUpper()},{keyB.ToUpper()},{accessBits}");
     }
     /// <summary>
     /// Write/Create a mifare classic value block.
@@ -893,12 +847,12 @@ namespace MetraTecDevices
     }
     /// <summary>
     /// Restore the value of a Mifare Classic block.
-    /// This will load the current value from the block. 
+    /// This will load the current value from the block.
     /// With the transfer method this value can be stored in a other block.
     /// Note that this operation only will have an effect after the transfer command is executed.
     /// Prior to this command, the card has to be selected and the block has to be authenticated.
     /// </summary>
-    /// <param name="block"></param>
+    /// <param name="block">block number</param>
     /// <exception cref="TransponderException">
     /// If the transponder return an error, further details in the exception message
     /// </exception>
@@ -913,7 +867,7 @@ namespace MetraTecDevices
     /// Write all pending transactions to a mifare classic block.
     /// Prior to this command, the card has to be selected and the block has to be authenticated.
     /// </summary>
-    /// <param name="block"></param>
+    /// <param name="block">block number</param>
     /// <exception cref="TransponderException">
     /// If the transponder return an error, further details in the exception message
     /// </exception>
@@ -925,9 +879,9 @@ namespace MetraTecDevices
       SetCommand($"AT+TXF={block}");
     }
 
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
-    /// Generic ISO14A Commands
-    /// ////////////////////////////////////////////////////////////////////////////////////////////////////////
+    #endregion Mifare Classic Commands
+
+    #region NTAG / Mifare Ultralight Commands
 
     /// <summary>
     /// Authenticate command for NTAG / Mifare Ultralight cards.
@@ -935,8 +889,8 @@ namespace MetraTecDevices
     /// After the authentication password protected pages can be accessed.
     /// Checks the password confirmation if it has been specified
     /// </summary>
-    /// <param name="password">password 4Byte (hex)</param>
-    /// <param name="passwordAcknowledge">password acknowledge (hex)</param>
+    /// <param name="password">8 sign password hex string</param>
+    /// <param name="passwordAcknowledge">4 sign password acknowledge hex string</param>
     /// <returns>The password acknowledge.</returns>
     /// <exception cref="TransponderException">
     /// if the password acknowledge is not correct
@@ -958,8 +912,8 @@ namespace MetraTecDevices
     /// Set the password and the password acknowledge for NTAG / Mifare Ultralight cards.
     /// Prior to this command, the card has to be selected.
     /// </summary>
-    /// <param name="password">password 4Byte (hex)</param>
-    /// <param name="passwordAcknowledge">password acknowledge (hex)</param>
+    /// <param name="password">8 sign password hex string</param>
+    /// <param name="passwordAcknowledge">4 sign password acknowledge hex string</param>
     /// <exception cref="TransponderException">
     /// If the transponder return an error, further details in the exception message
     /// </exception>
@@ -1062,7 +1016,6 @@ namespace MetraTecDevices
     /// </exception>
     public NTAGCounterConfig ReadNTAGCounterConfig()
     {
-      // +NCCFG: BOTH,4,0
       string[] response = SplitLine(GetCommand("AT+NCCFG?")[8..]);
       return new NTAGCounterConfig(response[0] != "0", response[1] != "0");
     }
@@ -1129,7 +1082,7 @@ namespace MetraTecDevices
     /// Read the NTAG counter.
     /// Prior to this command, the card has to be selected and authenticated
     /// </summary>
-    /// <returns></returns>
+    /// <returns>The NTAG counter</returns>
     /// <exception cref="TransponderException">
     /// If the transponder return an error, further details in the exception message
     /// </exception>
@@ -1170,6 +1123,48 @@ namespace MetraTecDevices
     public void LockNTAGBlockLock(int page)
     {
       SetCommand($"AT+NBLK={page}");
+    }
+
+    #endregion NTAG / Mifare Ultralight Commands
+
+    #endregion ISO14A Commands
+
+    #endregion Public Methods
+
+    #region Protected Methods
+
+    /// <summary>
+    /// Parse the inventory event (+CINV, +CMINV, +CINVR)
+    /// </summary>
+    /// <param name="response"></param>
+    protected override void HandleInventoryEvent(string response)
+    {
+      List<HfTag> tags = ParseInventory(response, "+CINV: ".Length);
+      FireInventoryEvent(tags, true);
+    }
+    /// <summary>
+    /// Configure the reader.
+    /// The base implementation must be called after success.
+    /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected override void PrepareReader()
+    {
+      base.PrepareReader();
+    }
+    /// <summary>
+    /// Configure the reader.
+    /// The base implementation must be called after success.
+    /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    protected override void ConfigureReader()
+    {
+      base.ConfigureReader();
+      GetInventorySettings();
+      GetMode();
     }
     /// <summary>
     /// Parse the error message and return the reader or transponder exception
@@ -1251,7 +1246,12 @@ namespace MetraTecDevices
           return new MetratecReaderException(response);
       }
     }
+
+    #endregion Protected Methods
+
   }
+
+  #region Configuration Classes/Enums
 
   /// <summary>
   /// RF interface mode for the tag communication
@@ -1267,7 +1267,7 @@ namespace MetraTecDevices
     /// </summary>
     ISO15,
     /// <summary>
-    /// Iso15 mode, needed for execute iso14a tag commands
+    /// Iso14a mode, needed for execute iso14a tag commands
     /// </summary>
     ISO14A,
   }
@@ -1278,19 +1278,23 @@ namespace MetraTecDevices
   public class InventorySettingsNfc
   {
     /// <summary>
-    /// Add transponder details
+    /// To add additional information about the tag in the inventory response. Only if the reader is not in AUTO mode
     /// </summary>
     /// <value>True, to add transponder details to the inventory call</value>
     public bool AddTagDetails { get; set; }
     /// <summary>
-    /// Only new tags filter only has an effect in ISO15 mode
+    /// The only new tags filter only has an effect in ISO15 mode. If enabled, a Stay Quiet is sent to each tag in the
+    /// field after an successful inventory. This has the effect that any tag that remains in the field is only found once
+    /// in an inventory
     /// </summary>
     /// <value>if true, only new tags are reported</value>
     public bool OnlyNewTags { get; set; }
     /// <summary>
-    /// Uso only one slot for communication, only has an effect in ISO15 mode.
+    /// Has only an effect in ISO15 mode. If it is set to 1 ISO15 inventories will be run in single slotted mode, resulting
+    /// in faster inventories. There will be no anti-collision loop performed so an inventory with multiple tags in the
+    /// field will result in failure.
     /// </summary>
-    /// <value>if true, the tid of each tag is reported</value>
+    /// <value>if true, only a single slot is used</value>
     public bool SingleSlot { get; set; }
     /// <summary>
     /// Create the inventory settings
@@ -1433,4 +1437,8 @@ namespace MetraTecDevices
       EnablePasswordProtection = enablePasswordProtection;
     }
   }
+
+  #endregion Configuration Classes/Enums
+
+
 }

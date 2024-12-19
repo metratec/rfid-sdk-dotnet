@@ -13,18 +13,18 @@
 
   <PropertyGroup>
     <TargetFramework>net6.0</TargetFramework>
+    <VersionPrefix>3.4.0</VersionPrefix>
+    <VersionSuffix>beta-2</VersionSuffix>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
     <Title>metraTecDevices</Title>
-    <Company>Metraec GmbH</Company>
+    <Company>Metratec GmbH</Company>
     <Product>metraTecDevices</Product>
     <Copyright>Copyright ©  2024</Copyright>
-    <AssemblyVersion>3.3.0.0</AssemblyVersion>
-    <FileVersion>3.3.0.0</FileVersion>
+    <FileVersion>3.4.0</FileVersion>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
-    <Version>$(AssemblyVersion)</Version>
   </PropertyGroup>
 
 </Project>

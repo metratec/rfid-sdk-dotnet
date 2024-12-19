@@ -16,12 +16,15 @@ namespace MetraTecDevices
     /// <summary>The constructor of the DMI15 object</summary>
     /// <param name="ipAddress">The device IP address</param>
     /// <param name="tcpPort">The device TCP port used</param>
-    public DMI15(string ipAddress, int tcpPort) : base(new EthernetInterface(ipAddress, tcpPort)) { }
-    /// <summary>The constructor of the DMI15 object</summary>
-    /// <param name="ipAddress">The device IP address</param>
-    /// <param name="tcpPort">The device TCP port used</param>
     /// <param name="logger">the logger</param>
-    public DMI15(string ipAddress, int tcpPort, ILogger logger) : base(new EthernetInterface(ipAddress, tcpPort), logger) { }
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public DMI15(string ipAddress, int tcpPort, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
+
+    /// <summary>The constructor of the DMI15 object</summary>
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public DMI15(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
     #endregion
   }
 }

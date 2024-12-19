@@ -14,228 +14,32 @@ namespace MetraTecDevices
   /// The number of antennas can further be extended using our multiplexers to up to 64 read points if you want to
   /// build an RFID smart shelve or a similar application.
   /// </summary>
-  public class PulsarLR : UhfReaderAT
+  public class PulsarLR : UhfReaderATIO
   {
-    #region Internal Variables
-    private List<int> currentAntennaPowers = new();
-    private List<int> currentConnectedMultiplexer = new();
-    #endregion
+    
 
     #region Constructor
-    /// <summary>Creates a new MetraTecDevices.PulsarLR instance</summary>
-    /// <param name="ipAddress">The device IP address</param>
-    /// <param name="tcpPort">The device TCP port used</param>
-    public PulsarLR(string ipAddress, int tcpPort) : base(new EthernetInterface(ipAddress, tcpPort)) { }
-    /// <summary>Creates a new MetraTecDevices.PulsarLR instance</summary>
+    /// <summary>Creates a new PulsarLR object</summary>
     /// <param name="ipAddress">The device IP address</param>
     /// <param name="tcpPort">The device TCP port used</param>
     /// <param name="logger">the logger</param>
-    public PulsarLR(string ipAddress, int tcpPort, ILogger logger) : base(new EthernetInterface(ipAddress, tcpPort), logger) { }
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public PulsarLR(string ipAddress, int tcpPort, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
+
+    /// <summary>The constructor of the PulsarLR object</summary>
+    /// <param name="portName">The device hardware information structure needed to connect to the device</param>
+    /// <param name="logger">the logger</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public PulsarLR(string portName, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), logger, id) { }
+
+    /// <summary>The constructor of the PulsarLR object</summary>
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public PulsarLR(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
 
     #endregion
 
-    #region Methods
-    /// <summary>
-    /// Configure the reader.
-    /// The base implementation must be called after success.
-    /// </summary>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected override void ConfigureReader()
-    {
-      base.ConfigureReader();
-      EnableInputEvents();
-      GetCurrentAntennaPowers();
-      GetCurrentConnectedMultiplexer();
-    }
-
-    /// <summary>
-    /// the power value per antenna (index 0 == antenna 1)
-    /// </summary>
-    /// <returns>List with the power values</returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected List<int> GetCurrentAntennaPowers()
-    {
-      String[] split = SplitLine(GetCommand("AT+PWR?")[6..]);
-      List<int> antennaPowers = split.Select(x => int.Parse(x)).ToList();
-      this.currentAntennaPowers = antennaPowers;
-      return new List<int>(antennaPowers);
-    }
-    /// <summary>
-    /// set the power values for the antennas
-    /// </summary>
-    /// <param name="antennaPowers">list with the multiplexer size for each antenna</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected void SetCurrentAntennaPowers(List<int> antennaPowers)
-    {
-      SetCommand("AT+PWR=" + string.Join(",", antennaPowers.Select(s => $"{s}")));
-      this.currentAntennaPowers = new List<int>(antennaPowers);
-    }
-    /// <summary>
-    /// Gets the current antenna power
-    /// </summary>
-    /// <param name="antenna">the antenna</param>
-    /// <returns>the current antenna power</returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public int GetAntennaPower(int antenna)
-    {
-      if (antenna <= 0)
-      {
-        throw new MetratecReaderException($"Antenna {antenna} is not available");
-      }
-      List<int> antennaPowers = GetCurrentAntennaPowers();
-      try
-      {
-        return antennaPowers[antenna - 1];
-      }
-      catch (IndexOutOfRangeException)
-      {
-        throw new MetratecReaderException($"Antenna {antenna} is not available");
-      }
-    }
-    /// <summary>
-    /// Sets the antenna power
-    /// </summary>
-    /// <param name="antenna">the antenna</param>
-    /// <param name="power">the rfid power to set</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public void SetAntennaPower(int antenna, int power)
-    {
-      if (antenna <= 0)
-      {
-        throw new MetratecReaderException($"Antenna {antenna} is not available");
-      }
-      try
-      {
-        List<int> antennaPowers = new(this.currentAntennaPowers);
-        antennaPowers[antenna - 1] = power;
-        SetCurrentAntennaPowers(antennaPowers);
-      }
-      catch (IndexOutOfRangeException)
-      {
-        throw new MetratecReaderException($"Antenna {antenna} is not available");
-      }
-    }
-    /// <summary>
-    /// Gets the configured multiplexer size per antenna (index 0 == antenna 1)
-    /// </summary>
-    /// <returns>List with the configured multiplexer size</returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected List<int> GetCurrentConnectedMultiplexer()
-    {
-      String[] split = SplitLine(GetCommand("AT+EMX?")[6..]);
-      List<int> multiplexer = split.Select(x => int.Parse(x)).ToList();
-      this.currentConnectedMultiplexer = multiplexer;
-      return new List<int>(multiplexer);
-    }
-    /// <summary>
-    /// set the power values for the antennas
-    /// </summary>
-    /// <param name="connectedMultiplexer">list with the multiplexer size for each antenna</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    protected void SetCurrentConnectedMultiplexer(List<int> connectedMultiplexer)
-    {
-      SetCommand("AT+EMX=" + string.Join(",", connectedMultiplexer.Select(s => $"{s}")));
-      this.currentConnectedMultiplexer = new List<int>(connectedMultiplexer);
-      // update antenna power values
-    }
-    /// <summary>
-    /// Get the connected multiplexer (connected antennas per antenna port)
-    /// </summary>
-    /// <param name="antennaPort">the antenna port to which the multiplexer is connected</param>
-    /// <returns>the multiplexer size</returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public int GetMultiplexer(int antennaPort)
-    {
-      if (1 > antennaPort || antennaPort > 4)
-      {
-        throw new MetratecReaderException($"Antenna {antennaPort} is not available");
-      }
-      List<int> multiplexer = GetCurrentConnectedMultiplexer();
-      return multiplexer[antennaPort - 1];
-    }
-    /// <summary>
-    /// Sets the connected multiplexer (connected antennas per antenna port)
-    /// </summary>
-    /// <param name="antennaPort">the antenna port to which the multiplexer is connected</param>
-    /// <param name="multiplexer">the multiplexer size</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public void SetMultiplexer(int antennaPort, int multiplexer)
-    {
-      if (1 > antennaPort || antennaPort > 4)
-      {
-        throw new MetratecReaderException($"Antenna {antennaPort} is not available");
-      }
-      List<int> connectedMultiplexer = new(this.currentConnectedMultiplexer);
-      connectedMultiplexer[antennaPort - 1] = multiplexer;
-      SetCurrentAntennaPowers(connectedMultiplexer);
-      // update antennas power values
-      GetCurrentAntennaPowers();
-    }
-    /// <summary>
-    /// Enable the "high on tag" feature which triggers the selected output to go to the "high" state,
-    /// when a tag is found. This allows to trigger an external device whenever a tag is in the field.
-    /// This corresponds to the blue LED.
-    /// </summary>
-    /// <param name="settings">the high on tag parameter</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public void SetHighOnTag(HighOnTagSetting settings)
-    {
-      if (settings.Enable)
-      {
-        if (null != settings.Duration)
-        {
-          SetCommand($"AT+HOT={settings.OutputPin},{settings.Duration}");
-        }
-        else
-        {
-          SetCommand($"AT+HOT={settings.OutputPin}");
-        }
-      }
-      else
-      {
-        SetCommand("AT+HOT=0");
-      }
-    }
-    /// <summary>
-    /// Gets the current high on tag feature setting
-    /// </summary>
-    /// <returns>the current high on tag setting</returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public HighOnTagSetting GetHighOnTag()
-    {
-      String[] split = SplitLine(GetCommand("AT+HOT?")[6..]);
-      if (split[0] == "OFF")
-      {
-        return new HighOnTagSetting(false);
-      }
-      else
-      {
-        return new HighOnTagSetting(int.Parse(split[0]), int.Parse(split[1]));
-      }
-    }
-    #endregion
   }
 
 

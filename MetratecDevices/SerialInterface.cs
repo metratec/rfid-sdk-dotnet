@@ -13,9 +13,37 @@ namespace CommunicationInterfaces
   {
     private SerialPort _SerialSocket = new();
     private int _baudRate;
+    private int _dataBits;
+    private StopBits _stopBits;
+    private Handshake _handshake;
+    private Parity _parity;
     private int _receiveTimeout = 2000;
     private string _newLine = "\u000D";
     private readonly string _port;
+
+    /// <summary>
+    /// The constructor
+    /// </summary>
+    /// <param name="COMPort">
+    /// The name of the COM Port that the device is attached to - e.g. "COM5"
+    /// </param>
+    /// <param name="baudrate">
+    /// The baud rate that the device uses
+    /// </param>
+    /// <param name="dataBits"></param>
+    /// <param name="stopBits"></param>
+    /// <param name="handshake"></param>
+    /// <param name="parity"></param>
+    public SerialInterface(string COMPort, int baudrate = 115200, int dataBits = 8, StopBits stopBits = StopBits.OnePointFive, Handshake handshake = Handshake.None, Parity parity = Parity.None)
+    {
+      _baudRate = baudrate;
+      _port = COMPort;
+      _dataBits = dataBits;
+      _stopBits = stopBits;
+      _handshake = handshake;
+      _parity = parity;
+    }
+  
     /// <summary>
     /// The constructor
     /// </summary>
@@ -25,10 +53,19 @@ namespace CommunicationInterfaces
     /// <param name="COMPort">
     /// The name of the COM Port that the device is attached to - e.g. "COM5"
     /// </param>
-    public SerialInterface(int baudrate, string COMPort)
+    /// <param name="dataBits"></param>
+    /// <param name="stopBits"></param>
+    /// <param name="handshake"></param>
+    /// <param name="parity"></param>
+    [Obsolete("Constructor is deprecated, please use SerialInterface(string COMPort, int baudrate) instead")]
+    public SerialInterface(int baudrate, string COMPort, int dataBits = 8, StopBits stopBits = StopBits.OnePointFive, Handshake handshake = Handshake.None, Parity parity = Parity.None)
     {
       _baudRate = baudrate;
       _port = COMPort;
+      _dataBits = dataBits;
+      _stopBits = stopBits;
+      _handshake = handshake;
+      _parity = parity;
     }
 
     /// <summary>

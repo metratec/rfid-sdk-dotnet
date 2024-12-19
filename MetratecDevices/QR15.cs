@@ -10,22 +10,38 @@ namespace MetraTecDevices
   public class QR15 : HfReaderAscii
   {
     #region Constructor
-    /// <summary>Creates a new MetraTecDevices.QR15 instance</summary>
-    /// <param name="ipAddress">The device IP address</param>
-    /// <param name="tcpPort">The device TCP port used</param>
-    public QR15(string ipAddress, int tcpPort) : base(new EthernetInterface(ipAddress, tcpPort)) { }
-    /// <summary>Creates a new MetraTecDevices.QR15 instance</summary>
-    /// <param name="portName">The device hardware information structure needed to connect to the device</param>
-    public QR15(string portName) : base(new SerialInterface(115200, portName)) { }
-    /// <summary>Creates a new MetraTecDevices.QR15 instance</summary>
+    /// <summary>Creates a new QR15 instance</summary>
+    /// <param name="serialPort">The device IP address</param>
+    /// <param name="logger">the logger</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public QR15(string serialPort, ILogger logger = null!, string id = null!) : base(new SerialInterface(serialPort), logger, id) { }
+
+    /// <summary>The constructor of the QR15 object</summary>
     /// <param name="ipAddress">The device IP address</param>
     /// <param name="tcpPort">The device TCP port used</param>
     /// <param name="logger">the logger</param>
-    public QR15(string ipAddress, int tcpPort, ILogger logger) : base(new EthernetInterface(ipAddress, tcpPort), logger) { }
-    /// <summary>Creates a new MetraTecDevices.QR15 instance</summary>
-    /// <param name="portName">The device hardware information structure needed to connect to the device</param>
-    /// <param name="logger">the logger</param>
-    public QR15(string portName, ILogger logger) : base(new SerialInterface(115200, portName), logger) { }
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public QR15(string ipAddress, int tcpPort, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
+
+    /// <summary>The constructor of the QR15 object</summary>
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public QR15(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+
+    #endregion
+
+    #region Protected Methods
+    /// <inheritdoc/>
+    protected override void EnableInputEvents(bool enable = true)
+    {
+      if (FirmwareName!.ToLower().Contains("v2"))
+      {
+        Logger.LogInformation("Input events disabled, minimum QR15_V2 required.");
+        return;
+      }
+      base.EnableInputEvents(enable);
+    }
     #endregion
   }
 }

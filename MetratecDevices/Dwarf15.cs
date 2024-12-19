@@ -10,21 +10,29 @@ namespace MetraTecDevices
   {
     #region Constructor
     /// <summary>The constructor of the Dwarf15 object</summary>
-    /// <param name="ipAddress">The device IP address</param>
-    /// <param name="tcpPort">The device TCP port used</param>
-    public Dwarf15(string ipAddress, int tcpPort) : base(new EthernetInterface(ipAddress, tcpPort)) { }
-    /// <summary>The constructor of the Dwarf15 object</summary>
-    /// <param name="portName">The device hardware information structure needed to connect to the device</param>
-    public Dwarf15(string portName) : base(new SerialInterface(115200, portName)) { }
-    /// <summary>The constructor of the Dwarf15 object</summary>
-    /// <param name="ipAddress">The device IP address</param>
-    /// <param name="tcpPort">The device TCP port used</param>
+    /// <param name="serialPort">The device IP address</param>
     /// <param name="logger">the logger</param>
-    public Dwarf15(string ipAddress, int tcpPort, ILogger logger) : base(new EthernetInterface(ipAddress, tcpPort), logger) { }
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public Dwarf15(string serialPort, ILogger logger = null!, string id = null!) : base(new SerialInterface(serialPort), logger, id) { }
+
     /// <summary>The constructor of the Dwarf15 object</summary>
-    /// <param name="portName">The device hardware information structure needed to connect to the device</param>
-    /// <param name="logger">the logger</param>
-    public Dwarf15(string portName, ILogger logger) : base(new SerialInterface(115200, portName), logger) { }
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public Dwarf15(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    #endregion
+
+    #region Protected Methods
+    /// <inheritdoc/>
+    protected override void EnableInputEvents(bool enable = true)
+    {
+      if (FirmwareMajorVersion != 3 || FirmwareMinorVersion < 14)
+      {
+        Logger.LogInformation("Input events disabled, minimum firmware version 3.14 required.");
+        return;
+      }
+      base.EnableInputEvents(enable);
+    }
     #endregion
   }
 }

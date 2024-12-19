@@ -15,7 +15,7 @@ Or you can alternatively edit your `.csproj` file:
 
 ```xml
 <ItemGroup>
-  <Reference Include="MetratecDevices, Version=3.3.0.0">
+  <Reference Include="MetratecDevices, Version=3.4.0.0">
     <HintPath>path\to\MetratecDevices.dll</HintPath>
   </Reference>
   <!-- For serial connection -->

@@ -1,4 +1,5 @@
 using System;
+using System.Threading;
 using CommunicationInterfaces;
 using Microsoft.Extensions.Logging;
 
@@ -9,49 +10,243 @@ namespace MetraTecDevices
   /// </summary>
   public abstract class MetratecReaderAscii<T> : MetratecReader<T> where T : RfidTag
   {
-    private bool _isCRC = false;
+    #region Properties
+
     /// <summary>
     /// Current antenna port
     /// </summary>
     /// <value></value>
     protected int CurrentAntennaPort { get; set; }
+    /// <summary>
+    /// communication crc check
+    /// </summary>
+    /// <value></value>
+    protected bool IsCRC { get; set; } = false;
+
+    #endregion Properties
+
+    #region Event Handlers
 
     /// <summary>
-    /// Create a new instance of the MetratecReaderAscii class.
+    /// Input change event handler
+    /// 
+    /// Note: The input trigger does not work during a continuous inventory.
+    /// Therefore, do not use the ‘StartInventory()’ method with the input listener.
+    /// If you need an inventory after an input has been changed, then use single inventories
+    /// with the ‘getInventory()’ method
     /// </summary>
-    /// <param name="connection">The connection interface</param>
-    public MetratecReaderAscii(ICommunicationInterface connection) : this(connection, null!, null!)
-    {
-    }
+    public event EventHandler<InputChangedEventArgs>? InputChanged;
+
+    #endregion Event Handlers
+
+    #region Constructor
 
     /// <summary>
     /// Create a new instance of the MetratecReaderAscii class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
-    public MetratecReaderAscii(ICommunicationInterface connection, ILogger logger) : this(connection, null!, logger)
-    {
-    }
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public MetratecReaderAscii(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+
+    #endregion Constructor
+
+    #region Public Methods
 
     /// <summary>
-    /// Create a new instance of the MetratecReaderAscii class.
+    /// Enable or Disable the antenna report. 
+    /// If the reader is used with an antenna multiplexer, you can enable this to get the antenna information in the inventory response.
     /// </summary>
-    /// <param name="connection">The connection interface</param>
-    /// /// <param name="id">The reader id</param>
-
-    public MetratecReaderAscii(ICommunicationInterface connection, string id) : this(connection, id, null!)
+    /// <param name="enable"></param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void EnableAntennaReport(bool enable = true)
     {
+      SetCommand($"SAP ARP {(enable ? "ON" : "OFF")}");
     }
-
     /// <summary>
-    /// Create a new instance of the MetratecReaderAscii class.
+    /// Enable the Cyclic Redundancy Check (CRC) of the computer to reader communication
     /// </summary>
-    /// <param name="connection">The connection interface</param>
-    /// <param name="id">The reader id</param>
-    /// <param name="logger">The connection interface</param>
-    public MetratecReaderAscii(ICommunicationInterface connection, string id, ILogger logger) : base(connection, id, logger)
+    /// <param name="enable">true for enable</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public virtual void EnableCrcCheck(bool enable = true)
     {
+      if (enable)
+      {
+        SetCommand("CON");
+        IsCRC = true;
+      }
+      else
+      {
+        SetCommand("COF");
+        IsCRC = false;
+      }
     }
+    /// <summary>
+    /// Send a command and check if the response contains "OK"
+    /// </summary>
+    /// <param name="command">the command to send</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public void SetCommand(String command)
+    {
+      string response = ExecuteCommand(command);
+      if (!response.Contains("OK"))
+      {
+        throw ParseErrorResponse(response);
+      }
+    }
+    /// <summary>u
+    /// Send a command and return the response
+    /// </summary>
+    /// <param name="command">the command to send</param>
+    /// <returns>the command response</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public String GetCommand(String command)
+    {
+      string response = ExecuteCommand(command);
+      if (IsCRC)
+      {
+        if (CheckCRC(response))
+        {
+          return response[..^5];
+        }
+        else
+        {
+          //multiline response?
+          string[] array = SplitResponse(response);
+          string responseWithoutCRC = "";
+          for (int i = 0; i < array.Length; i++)
+          {
+            responseWithoutCRC += array[i];
+            responseWithoutCRC += "\u000D";
+          }
+          return responseWithoutCRC[..^1];
+        }
+      }
+      else
+      {
+        return response;
+      }
+    }
+    /// <summary>
+    /// Send a command and returns the response
+    /// </summary>
+    /// <param name="command">the command</param>
+    /// <param name="timeout">the response timeout, defaults to 2000ms</param>
+    /// <returns></returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public override string ExecuteCommand(string command, int timeout = 0)
+    {
+      SendCommand(command);
+      try
+      {
+        return GetResponse(timeout);
+      }
+      catch (MetratecReaderException e)
+      {
+        if (e.Message.Contains("timeout"))
+        {
+          throw new MetratecReaderException($"Response timeout ({command})", e);
+        }
+        throw;
+      }
+      catch (Exception)
+      {
+        throw;
+      }
+    }
+    /// <summary>
+    /// Returns true if the input pin is high, otherwise false
+    /// </summary>
+    /// <param name="pin">The requested input pin number</param>
+    /// <returns>True if the input pin is high, otherwise false</returns>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public override bool GetInput(int pin)
+    {
+      String response = GetCommand($"RIP {pin}");
+      if (response.Contains("HI"))
+      {
+        return true;
+      }
+      else if (response.Contains("LOW"))
+      {
+        return false;
+      }
+      else
+      {
+        throw ParseErrorResponse(response);
+      }
+    }
+    /// <summary>
+    /// Sets a output pin
+    /// </summary>
+    /// <param name="pin">The output pin number</param>
+    /// <param name="value">True for set the pin high</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public override void SetOutput(int pin, bool value)
+    {
+      SetCommand($"WOP {pin} {(value ? "HI" : "LOW")}");
+    }
+    /// <summary>
+    /// Sets the current antenna to use
+    /// </summary>
+    /// <param name="antennaPort">the antenna to use</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public override void SetAntenna(int antennaPort)
+    {
+      SetCommand($"SAP {antennaPort}");
+      CurrentAntennaPort = antennaPort;
+    }
+    /// <summary>
+    /// Sets the number of antennas to be multiplexed
+    /// </summary>
+    /// <param name="antennasToUse">the antenna count to use</param>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public override void SetAntennaMultiplex(int antennasToUse)
+    {
+      SetCommand($"SAP AUT {antennasToUse}");
+    }
+    /// <summary>
+    /// Stops the continuous inventory scan.
+    /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+    public override void StopInventory()
+    {
+      string response = GetCommand("BRK");
+      if (response.Contains("BRA") || response.Contains("NCM"))
+        return;
+      else
+        throw ParseErrorResponse(response);
+    }
+    /// <inheritdoc/>
+    public override void Reset()
+    {
+      SetCommand("RST");
+      base.Reset();
+    }
+
+    #endregion Public Methods
+
+    #region Protected Method
 
     /// <summary>
     /// Process the reader response...override for event check
@@ -79,6 +274,11 @@ namespace MetraTecDevices
                 return;
               }
               break;
+            case 'N':
+              // input event: IN0 IN1 
+              bool state = response.Contains("HI!");
+              FireInputChangeEvent(int.Parse(response[2].ToString()), state);
+              return;
           }
           break;
       }
@@ -89,7 +289,6 @@ namespace MetraTecDevices
       }
       base.HandleResponse(response);
     }
-
     /// <summary>
     /// Send a command
     /// </summary>
@@ -99,7 +298,7 @@ namespace MetraTecDevices
     /// </exception>
     protected override void SendCommand(string command)
     {
-      if (_isCRC)
+      if (IsCRC)
       {
         base.SendCommand($"{command} {ComputeCRC(command + " ")}");
       }
@@ -108,59 +307,6 @@ namespace MetraTecDevices
         base.SendCommand(command);
       }
     }
-
-    /// <summary>
-    /// Method to compute CRC (starting value 0xFFFF, 8408 polynomial)
-    /// </summary>
-    /// <param name="toCompute">
-    /// The string over which the CRC is to be computed
-    /// </param>
-    /// <returns>
-    /// A string containing the CRC as 4 hex digits
-    /// </returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    
-    internal static string ComputeCRC(string toCompute)
-    {
-      if (toCompute == null)
-        throw new MetratecReaderException("The string passed to the CRC computation function was null");
-      string result;
-      byte[] _konvertierteDaten = System.Text.Encoding.ASCII.GetBytes(toCompute);
-      int i, j;
-      UInt16 _CRC;
-      _CRC = 0xFFFF;
-      for (i = 0; i < _konvertierteDaten.Length; i++)
-      {
-        _CRC ^= _konvertierteDaten[i];
-        for (j = 0; j < 8; j++)
-        {
-          if ((_CRC & 0x0001) == 0) _CRC >>= 1;
-          else _CRC = (UInt16)((_CRC >> 1) ^ 0x8408);
-        }
-        //if ((_CRC == 1) && (_CRC == 2))
-        //    break;
-      }
-      result = _CRC.ToString("X4");
-      return result;
-    }
-    /// <summary>
-    /// Method to check reader answers for correct CRCs
-    /// </summary>
-    /// <param name="toCheck">
-    /// The string to be checked - contains the CRC as the last 4 characters
-    /// </param>
-    /// <returns>
-    /// True if CRC is correct
-    /// </returns>
-    internal static bool CheckCRC(string toCheck)
-    {
-      if (toCheck.Length < 4)
-        return false;
-      return toCheck.Substring(toCheck.Length - 4, 4) == ComputeCRC(toCheck[..^4]);
-    }
-
     /// <summary>
     /// Configure the reader.
     /// The base implementation must be called after success.
@@ -174,7 +320,7 @@ namespace MetraTecDevices
       bool checkSleeping = false;
       ClearResponseBuffer();
       SetEndOfFrame("\r");
-      _isCRC = false;
+      IsCRC = false;
       SendCommand("BRK");
       string receive;
       while (next)
@@ -192,7 +338,7 @@ namespace MetraTecDevices
           }
           else if (receive.Contains("CCE"))
           {
-            _isCRC = true;
+            IsCRC = true;
             if (checkSleeping)
               SendCommand("WAK");
             else
@@ -227,10 +373,30 @@ namespace MetraTecDevices
       SetHeartBeatInterval(0);
       EnableEndOfFrame(true);
       EnableCrcCheck(true);
-      SetHeartBeatInterval(10);
+      if (!IsSerialConnection())
+      {
+        SetHeartBeatInterval(10);
+      }
       base.PrepareReader();
     }
-
+    /// <summary>
+    /// Stop the receive thread and disconnect the reader. Update the status message
+    /// </summary>
+    /// <param name="statusMessage">the reader status message</param>
+    protected override void Disconnect(string statusMessage)
+    {
+      if (Connected)
+      {
+        EnableCrcCheck(false);
+        EnableEndOfFrame(false);
+      }
+      base.Disconnect(statusMessage);
+    }
+    /// <summary>
+    /// Called if a new inventory response is received
+    /// </summary>
+    /// <param name="response">inventory response</param>
+    protected abstract void HandleInventoryResponse(string response);
     /// <summary>
     /// Enable or Disable end of frame
     /// </summary>
@@ -252,136 +418,6 @@ namespace MetraTecDevices
       }
     }
     /// <summary>
-    /// Enable or Disable the antenna report. 
-    /// If the reader is used with an antenna multiplexer, you can enable this to get the antenna information in the inventory response.
-    /// </summary>
-    /// <param name="enable"></param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public void EnableAntennaReport(bool enable = true)
-    {
-      SetCommand($"SAP ARP {(enable ? "ON" : "OFF")}");
-    }
-    /// <summary>
-    /// Enable the Cyclic Redundancy Check (CRC) of the computer to reader communication
-    /// </summary>
-    /// <param name="enable">true for enable</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public void EnableCrcCheck(bool enable = true)
-    {
-      if (enable)
-      {
-        SetCommand("CON");
-        _isCRC = true;
-      }
-      else
-      {
-        SetCommand("COF");
-        _isCRC = false;
-      }
-    }
-
-    /// <summary>
-    /// Stop the receive thread and disconnect the reader. Update the status message
-    /// </summary>
-    /// <param name="statusMessage">the reader status message</param>
-    protected override void Disconnect(string statusMessage)
-    {
-      if (Connected)
-      {
-        EnableCrcCheck(false);
-        EnableEndOfFrame(false);
-      }
-      base.Disconnect(statusMessage);
-    }
-
-    /// <summary>
-    /// Send a command and check if the response contains "OK"
-    /// </summary>
-    /// <param name="command">the command to send</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public void SetCommand(String command)
-    {
-      string response = ExecuteCommand(command);
-      if (!response.Contains("OK"))
-      {
-        throw ParseErrorResponse(response);
-      }
-    }
-
-    /// <summary>u
-    /// Send a command and return the response
-    /// </summary>
-    /// <param name="command">the command to send</param>
-    /// <returns>the command response</returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public String GetCommand(String command)
-    {
-      string response = ExecuteCommand(command);
-      if (_isCRC)
-      {
-        if (CheckCRC(response))
-        {
-          return response[..^5];
-        }
-        else
-        {
-          //multiline response?
-          string[] array = SplitResponse(response);
-          string responseWithoutCRC = "";
-          for (int i = 0; i < array.Length; i++)
-          {
-            responseWithoutCRC += array[i];
-            responseWithoutCRC += "\u000D";
-          }
-          return responseWithoutCRC[..^1];
-        }
-      }
-      else
-      {
-        return response;
-      }
-    }
-
-    /// <summary>
-    /// Send a command and returns the response
-    /// </summary>
-    /// <param name="command">the command</param>
-    /// <param name="timeout">the response timeout, defaults to 2000ms</param>
-    /// <returns></returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    
-    public override string ExecuteCommand(string command, int timeout = 0)
-    {
-      SendCommand(command);
-      try
-      {
-        return GetResponse(timeout);
-      }
-      catch (MetratecReaderException e)
-      {
-        if(e.Message.Contains("timeout"))
-        {
-          throw new MetratecReaderException($"Response timeout ({command})", e);
-        }
-        throw;
-      }
-      catch (Exception)
-      {
-        throw;
-      }
-    }
-
-    /// <summary>
     /// Split a multiline response (and check the crc)
     /// </summary>
     /// <param name="response"></param>
@@ -389,7 +425,7 @@ namespace MetraTecDevices
     protected string[] SplitResponse(string response)
     {
       string[] array = response.Split("\u000D", 128, StringSplitOptions.RemoveEmptyEntries);
-      if (_isCRC)
+      if (IsCRC)
       {
         if (response.StartsWith("CCE"))
           throw new MetratecCommunicationException($"CRC error - {response}");
@@ -407,13 +443,6 @@ namespace MetraTecDevices
       }
       return array;
     }
-
-    /// <summary>
-    /// Called if a new inventory response is received
-    /// </summary>
-    /// <param name="response">inventory response</param>
-    protected abstract void HandleInventoryResponse(string response);
-
     /// <summary>
     /// Parse the error response and throw a MetratecCommunicationException with a detailed message
     /// </summary>
@@ -507,7 +536,6 @@ namespace MetraTecDevices
         }
       }
     }
-
     /// <summary>
     /// Update the the firmware name and version ({firmware} {version})
     /// </summary>
@@ -552,7 +580,6 @@ namespace MetraTecDevices
       }
       SerialNumber = ReadSerialNumber();
     }
-
     /// <returns>the firmware information or 'UCO' if not available</returns>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
@@ -561,7 +588,6 @@ namespace MetraTecDevices
     {
       return GetCommand("RFW");
     }
-
     /// <returns>the hardware information or 'UCO' if not available</returns>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
@@ -570,7 +596,6 @@ namespace MetraTecDevices
     {
       return GetCommand("RHW");
     }
-
     /// <returns>the firmware and hardware information or 'UCO' if not available</returns>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
@@ -579,7 +604,6 @@ namespace MetraTecDevices
     {
       return GetCommand("REV");
     }
-
     /// <returns>the serial number</returns>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
@@ -588,45 +612,18 @@ namespace MetraTecDevices
     {
       return GetCommand("RSN");
     }
-
     /// <summary>
-    /// Returns true if the input pin is high, otherwise false
+    /// Fire a inventory event
     /// </summary>
-    /// <param name="pin">The requested input pin number</param>
-    /// <returns>True if the input pin is high, otherwise false</returns>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public override bool GetInput(int pin)
+    /// <param name="inputPin">the changed input pin</param>
+    /// <param name="isHigh">the new value</param>
+    protected void FireInputChangeEvent(int inputPin, bool isHigh)
     {
-      String response = GetCommand($"RIP {pin}");
-      if (response.Contains("HI"))
-      {
-        return true;
-      }
-      else if (response.Contains("LOW"))
-      {
-        return false;
-      }
-      else
-      {
-        throw ParseErrorResponse(response);
-      }
+      if (null == InputChanged)
+        return;
+      InputChangedEventArgs args = new(inputPin, isHigh, new DateTime());
+      ThreadPool.QueueUserWorkItem(o => InputChanged.Invoke(this, args));
     }
-
-    /// <summary>
-    /// Sets a output pin
-    /// </summary>
-    /// <param name="pin">The output pin number</param>
-    /// <param name="value">True for set the pin high</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public override void SetOutput(int pin, bool value)
-    {
-      SetCommand($"WOP {pin} {(value ? "HI" : "LOW")}");
-    }
-
     /// <summary>
     /// Set the verbosity level
     /// </summary>
@@ -643,44 +640,62 @@ namespace MetraTecDevices
       SetCommand($"VBL {level}");
     }
 
-    /// <summary>
-    /// Sets the current antenna to use
-    /// </summary>
-    /// <param name="antennaPort">the antenna to use</param>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public override void SetAntenna(int antennaPort)
-    {
-      SetCommand($"SAP {antennaPort}");
-      CurrentAntennaPort = antennaPort;
-    }
+    #endregion Protected Method
+
+    #region Private Methods
 
     /// <summary>
-    /// Sets the number of antennas to be multiplexed
+    /// Method to compute CRC (starting value 0xFFFF, 8408 polynomial)
     /// </summary>
-    /// <param name="antennasToUse">the antenna count to use</param>
+    /// <param name="toCompute">
+    /// The string over which the CRC is to be computed
+    /// </param>
+    /// <returns>
+    /// A string containing the CRC as 4 hex digits
+    /// </returns>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    public override void SetAntennaMultiplex(int antennasToUse)
-    {
-      SetCommand($"SAP AUT {antennasToUse}");
-    }
 
-    /// <summary>
-    /// Stops the continuous inventory scan.
-    /// </summary>
-    /// <exception cref="MetratecReaderException">
-    /// If the reader is not connected or an error occurs, further details in the exception message
-    /// </exception>
-    public override void StopInventory()
+    internal static string ComputeCRC(string toCompute)
     {
-      string response = GetCommand("BRK");
-      if (response.Contains("BRA") || response.Contains("NCM"))
-        return;
-      else
-        throw ParseErrorResponse(response);
+      if (toCompute == null)
+        throw new MetratecReaderException("The string passed to the CRC computation function was null");
+      string result;
+      byte[] _konvertierteDaten = System.Text.Encoding.ASCII.GetBytes(toCompute);
+      int i, j;
+      UInt16 _CRC;
+      _CRC = 0xFFFF;
+      for (i = 0; i < _konvertierteDaten.Length; i++)
+      {
+        _CRC ^= _konvertierteDaten[i];
+        for (j = 0; j < 8; j++)
+        {
+          if ((_CRC & 0x0001) == 0) _CRC >>= 1;
+          else _CRC = (UInt16)((_CRC >> 1) ^ 0x8408);
+        }
+        //if ((_CRC == 1) && (_CRC == 2))
+        //    break;
+      }
+      result = _CRC.ToString("X4");
+      return result;
+    }
+    /// <summary>
+    /// Method to check reader answers for correct CRCs
+    /// </summary>
+    /// <param name="toCheck">
+    /// The string to be checked - contains the CRC as the last 4 characters
+    /// </param>
+    /// <returns>
+    /// True if CRC is correct
+    /// </returns>
+    internal static bool CheckCRC(string toCheck)
+    {
+      if (toCheck.Length < 4)
+        return false;
+      return toCheck.Substring(toCheck.Length - 4, 4) == ComputeCRC(toCheck[..^4]);
     }
   }
+
+  #endregion Private Methods
 }
