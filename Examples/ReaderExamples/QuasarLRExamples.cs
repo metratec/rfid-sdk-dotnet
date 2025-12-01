@@ -5,165 +5,156 @@ using MetraTecDevices;
 namespace ReaderExamples
 {
   /// <summary>
-  /// Examples demonstrating QuasarMX reader operations for High Frequency (HF) RFID tags.
-  /// This network-connected reader supports ISO15693 tags and provides Ethernet connectivity for remote operations.
-  /// Uses ASCII protocol over Ethernet communication with advanced HF capabilities.
+  /// Examples demonstrating QuasarLR reader operations for High Frequency (HF) RFID tags.
+  /// This HF long-range reader is designed for demanding industrial applications requiring
+  /// high reading reliability, extended read ranges, and extensive special tag features.
+  /// Supports both Ethernet and serial connectivity with high-power operations (500-8000mW).
   /// </summary>
-  internal class QuasarMxExamples
+  internal class QuasarLRExamples
   {
     /// <summary>
-    /// Demonstrates basic HF inventory operations using network connectivity.
-    /// Shows how to detect ISO15693 compatible tags over Ethernet connection with proper error handling.
+    /// Demonstrates basic HF long-range inventory operations using the QuasarLR reader.
+    /// Shows how to detect ISO15693 tags at extended distances with high-power operations.
     /// </summary>
-    public static void InventoryExample()
+    public static void LongRangeInventoryExample()
     {
-      // Create the reader instance using Ethernet communication
-      // Note: Update IP address and port to match your QuasarMX network configuration
-      QuasarMX reader = new QuasarMX("192.168.2.201", 10001);
+      // Create the QuasarLR reader instance - supports both Ethernet and Serial connectivity
+      // Option 1: Ethernet connection (recommended for industrial applications)
+      QuasarLR reader = new QuasarLR("192.168.1.100", 10001);
+
+      // Option 2: Serial connection (for direct connection applications)
+      // QuasarLR reader = new QuasarLR("COM8");
 
       // Subscribe to reader connection status changes (Connected/Disconnected)
-      reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp}Reader status changed to {e.Message} ({e.Status})");
-      
+      reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} QuasarLR status changed to {e.Message} ({e.Status})");
+
       // Subscribe to inventory events - triggered when tags are detected during continuous scanning
       reader.NewInventory += (s, e) =>
       {
-        Console.WriteLine($"{e.Timestamp}New inventory event! {e.Tags.Count} HF Tag(s) found");
+        Console.WriteLine($"{e.Timestamp} Long-range inventory event! {e.Tags.Count} HF Tag(s) found");
         foreach (HfTag tag in e.Tags)
         {
+          // Display comprehensive HF tag information with range estimation
           Console.WriteLine($"  TID: {tag.TID}");
         }
       };
-      
-      // Subscribe to GPIO input changes (if supported by QuasarMX)
-      reader.InputChanged += (s, e) => Console.WriteLine($"Input Changed: {e.Pin} {e.IsHigh}");
 
-      // Establish network connection to the reader with 2-second timeout
+      // Establish connection to the reader with 3-second timeout (longer for network)
       try
       {
-        Console.WriteLine("Connecting to QuasarMX...");
-        reader.Connect(2000);
+        Console.WriteLine("Connecting to QuasarLR long-range HF reader...");
+        reader.Connect(3000);
         Console.WriteLine("Connection established!");
+        Console.WriteLine($"Reader Firmware: {reader.FirmwareVersion}");
       }
       catch (MetratecReaderException e)
       {
         Console.WriteLine($"Cannot connect to reader ({e.Message}). Program exits");
         Console.WriteLine("\nTroubleshooting:");
-        Console.WriteLine("- Check network cable connection");
-        Console.WriteLine("- Verify QuasarMX IP address configuration");
-        Console.WriteLine("- Ensure reader is powered on");
-        Console.WriteLine("- Check firewall settings on port 10001");
-        Console.WriteLine("- Verify network connectivity (ping test)");
+        Console.WriteLine("- For Ethernet: Check network cable and IP configuration");
+        Console.WriteLine("- For Serial: Check USB cable connection and COM port");
+        Console.WriteLine("- Verify QuasarLR is properly powered (industrial power supply)");
+        Console.WriteLine("- Check if another application is using the device");
+        Console.WriteLine("- Ensure external antenna is properly connected");
+        Console.WriteLine("- Verify this is QuasarLR (HF long-range), not QuasarMX");
+        Console.WriteLine("- Check firewall settings for network connection");
         return;
       }
-      
+
       try
       {
-        // Configure RF interface for optimal ISO15693 operation
-        try
-        {
-          reader.EnableRfInterface(SubCarrier.SINGLE, ModulationDepth.Depth100);
-          Console.WriteLine("RF interface configured for ISO15693 operation");
-        }
-        catch (MetratecReaderException ex)
-        {
-          Console.WriteLine($"RF configuration failed: {ex.Message}");
-          Console.WriteLine("Continuing with default RF settings...");
-        }
+        // Set high power for long-range operations (500-8000 mW)
+        // QuasarLR supports much higher power levels than standard readers
+        int powerLevel = 4000; // 4000 mW = 5W for long-range operations
+        reader.SetPower(powerLevel);
+        Console.WriteLine($"QuasarLR power set to {powerLevel} mW (long-range mode)");
 
-        // Set power if supported (firmware version >= 3.0)
-        try
-        {
-          reader.SetPower(100);
-          Console.WriteLine("Reader power set to 10");
-        }
-        catch (MetratecReaderException ex)
-        {
-          Console.WriteLine($"Power setting not supported: {ex.Message}");
-          Console.WriteLine("Continuing with default power settings...");
-        }
-        
-        // Perform a single inventory scan to detect currently present tags
-        // This also triggers the NewInventory event if listeners are registered
-        Console.WriteLine("\nPerforming single inventory scan...");
+        // Perform a single long-range inventory scan
+        Console.WriteLine("\nPerforming long-range inventory scan...");
         List<HfTag> tags = reader.GetInventory();
-        Console.WriteLine($"Current inventory: {tags.Count} HF Tag(s) found");
-        
+        Console.WriteLine($"Long-range inventory: {tags.Count} HF Tag(s) found");
+
         foreach (HfTag tag in tags)
         {
           Console.WriteLine($"TID: {tag.TID}");
           Console.WriteLine();
         }
 
-        // Start continuous inventory scanning in the background
-        Console.WriteLine("Starting continuous inventory scan...");
+        // Start continuous long-range scanning
+        Console.WriteLine("Starting continuous long-range inventory scan...");
         reader.StartInventory();
-        Console.WriteLine("Continuous inventory scan started - Press any key to stop");
+        Console.WriteLine("Long-range scan active - monitoring extended detection zone");
+        Console.WriteLine("Press any key to stop long-range scanning");
         Console.ReadKey();
-        
+
         // Stop the continuous scanning
         reader.StopInventory();
-        Console.WriteLine("Continuous inventory stopped");
+        Console.WriteLine("Long-range inventory stopped");
       }
       catch (MetratecReaderException ex)
       {
-        Console.WriteLine($"Error during operation: {ex.Message}");
+        Console.WriteLine($"Error during long-range operation: {ex.Message}");
         Console.WriteLine("\nPossible causes:");
-        Console.WriteLine("- No HF/ISO15693 tags in range");
-        Console.WriteLine("- RF interference in 13.56 MHz band");
-        Console.WriteLine("- Tag orientation or distance issues");
-        Console.WriteLine("- Reader antenna configuration problems");
-        Console.WriteLine("- Network communication timeout");
+        Console.WriteLine("- No HF/ISO15693 tags in extended range");
+        Console.WriteLine("- External antenna connection issues");
+        Console.WriteLine("- RF interference in HF band (13.56 MHz)");
+        Console.WriteLine("- High power operation requires proper setup");
+        Console.WriteLine("- Tag orientation critical at long range");
+        Console.WriteLine("- Industrial environment RF noise");
       }
       finally
       {
-        // Always disconnect to free network resources
+        // Always disconnect to free resources and reduce power
         if (reader.Connected)
         {
           reader.Disconnect();
-          Console.WriteLine("Connection closed");
+          Console.WriteLine("Long-range reader connection closed");
         }
       }
     }
 
     /// <summary>
-    /// Demonstrates reading and writing data to HF tag memory blocks using network-based reader.
-    /// Shows how to access ISO15693 tag memory for data storage and retrieval with comprehensive error handling.
+    /// Demonstrates advanced read/write operations with the QuasarLR reader.
+    /// Shows how to access tag memory at extended distances with high-power operations.
     /// </summary>
-    public static void ReadWriteExample()
+    public static void LongRangeReadWriteExample()
     {
-      // Create the reader instance using Ethernet communication
-      // Note: Update IP address and port to match your QuasarMX network configuration
-      QuasarMX reader = new QuasarMX("192.168.2.201", 10001);
-      
+      // Create the QuasarLR reader instance for read/write operations
+      QuasarLR reader = new QuasarLR("192.168.1.100", 10001);
+
       // Subscribe to reader connection status changes
-      reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} Reader status changed to {e.Message} ({e.Status})");
-      
-      // Establish network connection with 2-second timeout
+      reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} QuasarLR status: {e.Message} ({e.Status})");
+
+      // Establish connection to the reader
       try
       {
-        Console.WriteLine("Connecting to QuasarMX for read/write operations...");
-        reader.Connect(2000);
+        Console.WriteLine("Connecting to QuasarLR for long-range read/write operations...");
+        reader.Connect(3000);
         Console.WriteLine("Connection established!");
       }
       catch (MetratecReaderException e)
       {
         Console.WriteLine($"Cannot connect to reader ({e.Message}). Program exits");
         Console.WriteLine("\nTroubleshooting:");
-        Console.WriteLine("- Check network cable connection");
-        Console.WriteLine("- Verify reader IP address configuration");
-        Console.WriteLine("- Ensure reader is powered on");
-        Console.WriteLine("- Check firewall settings");
+        Console.WriteLine("- Check network connection (Ethernet recommended for QuasarLR)");
+        Console.WriteLine("- Verify IP address and port configuration");
+        Console.WriteLine("- Ensure industrial power supply is connected");
+        Console.WriteLine("- Check external antenna connections");
+        Console.WriteLine("- Verify QuasarLR is powered on and initialized");
         return;
       }
-      
+
       try
       {
-        // Configure RF interface for optimal performance
-        reader.EnableRfInterface(SubCarrier.SINGLE, ModulationDepth.Depth100);
-        Console.WriteLine("RF interface configured for ISO15693 operation");
+        // Set high power for reliable read/write operations at distance
+        int powerLevel = 4000; // 4W for reliable read/write operations
+        reader.SetPower(powerLevel);
+        Console.WriteLine($"QuasarLR power set to {powerLevel} mW for read/write operations");
 
-        // Wait for an HF tag to be placed within reader range
-        Console.WriteLine("Please place an ISO15693 tag near the QuasarMX reader...");
+        // Wait for an HF tag to be placed within the extended detection range
+        Console.WriteLine("\nPlace an HF/ISO15693 tag within the QuasarLR detection zone...");
+        Console.WriteLine("Note: QuasarLR can detect tags at significantly greater distances");
+
         List<HfTag> tags;
         int attempts = 0;
         do
@@ -174,23 +165,23 @@ namespace ReaderExamples
             attempts++;
             if (attempts % 5 == 0)
             {
-              Console.WriteLine($"No tags found after {attempts} attempts. Continuing to search...");
-              Console.WriteLine("Make sure you have an ISO15693 compatible tag");
-              Console.WriteLine("Try placing the tag closer to the reader antenna");
+              Console.WriteLine($"Scanning for tags... ({attempts} attempts)");
+              Console.WriteLine("QuasarLR is scanning extended range - tags can be further away");
+              Console.WriteLine("Try placing tag near external antenna");
+              Console.WriteLine($"Current power: {powerLevel} mW provides extended range");
             }
             System.Threading.Thread.Sleep(1000);
           }
         } while (tags.Count == 0 && attempts < 30);
-        
+
         if (tags.Count == 0)
         {
-          Console.WriteLine("No tags found after 30 seconds. Please check tag compatibility and placement.");
+          Console.WriteLine("No tags found after 30 seconds. Check tag placement and antenna connection.");
           return;
         }
-        
+
         // Use the first detected tag for read/write operations
         HfTag tag = tags[0];
-        Console.WriteLine($"HF tag found:");
         Console.WriteLine($"  TID: {tag.TID}");
 
         // Attempt to read data from memory block 0 (usually contains tag info)

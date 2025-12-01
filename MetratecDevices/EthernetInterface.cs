@@ -9,8 +9,17 @@ namespace CommunicationInterfaces
   /// <summary>
   /// The Ethernet version of the interface used for communication
   /// </summary>
-  public class EthernetInterface : ICommunicationInterface
+  public class EthernetInterface : ICommunicationInterface, IDisposable
   {
+    /// <summary>
+    /// Maximum allowed buffer size to prevent memory exhaustion attacks (10MB)
+    /// </summary>
+    private const int MaxBufferSize = 10 * 1024 * 1024;
+    
+    /// <summary>
+    /// Maximum allowed command length to prevent buffer overflow attacks
+    /// </summary>
+    private const int MaxCommandLength = 1024;
     /// <summary>
     /// String variable to remember newline character
     /// </summary>
@@ -23,6 +32,7 @@ namespace CommunicationInterfaces
     private Socket? _clientSocket;
     private NetworkStream? _socketStream;
     private bool _isConnected = false;
+    private bool _disposed = false;
 
     /// <summary>
     /// The constructor
@@ -134,9 +144,9 @@ namespace CommunicationInterfaces
           IPHostEntry hostEntry = Dns.GetHostEntry(_address);
           ipAddress = hostEntry.AddressList[0];
         }
-        catch (Exception)
+        catch (Exception ex)
         {
-          throw new MetratecCommunicationException("Setting up IPBased connection to the device failed wrong address given?!");
+          throw new MetratecCommunicationException($"Setting up IPBased connection to the device failed - could not resolve address '{_address}': {ex.Message}", ex);
         }
       }
       if ((_port < 1) || (_port > 65535))
@@ -179,6 +189,7 @@ namespace CommunicationInterfaces
       _socketStream?.Close();
       _socketStream?.Dispose();
       _clientSocket?.Close();
+      _clientSocket?.Dispose();
       _isConnected = false;
     }
 
@@ -241,6 +252,23 @@ namespace CommunicationInterfaces
     /// </exception>
     public void SendCommand(string outputBuffer)
     {
+      // Validate input to prevent command injection
+      if (outputBuffer == null)
+      {
+        throw new ArgumentNullException(nameof(outputBuffer), "Command cannot be null");
+      }
+      
+      if (outputBuffer.Length > MaxCommandLength)
+      {
+        throw new ArgumentException($"Command length ({outputBuffer.Length}) exceeds maximum allowed length ({MaxCommandLength})", nameof(outputBuffer));
+      }
+      
+      // Check for null bytes or other control characters that could be used for injection
+      if (outputBuffer.Contains('\0'))
+      {
+        throw new ArgumentException("Command contains null bytes which are not allowed", nameof(outputBuffer));
+      }
+      
       try
       {
         byte[] help = System.Text.Encoding.ASCII.GetBytes(outputBuffer + "\u000D");
@@ -331,6 +359,12 @@ namespace CommunicationInterfaces
       DateTime start = DateTime.Now;
       while (!sb.ToString().EndsWith(endLineString))
       {
+        // Prevent buffer overflow by limiting buffer size
+        if (sb.Length >= MaxBufferSize)
+        {
+          throw new MetratecCommunicationException($"Response buffer size exceeded maximum allowed size of {MaxBufferSize} bytes");
+        }
+        
         try
         {
           TimeSpan ts = DateTime.Now.Subtract(start);
@@ -338,19 +372,22 @@ namespace CommunicationInterfaces
             continue;
           if (ts.TotalMilliseconds >= _clientSocket!.ReceiveTimeout)
           {
-            throw new TimeoutException($"Response Timeout - {sb}");
+            // Sanitize error message to prevent information disclosure
+            throw new TimeoutException("Response timeout occurred");
           }
           int c = _socketStream.ReadByte();
           if (c < 0)
           {
-            throw new TimeoutException($"Response Timeout - {sb}");
+            // Sanitize error message to prevent information disclosure
+            throw new TimeoutException("Response timeout occurred - no data received");
           }
           sb.Append(Convert.ToChar(c));
           start = DateTime.Now;
         }
         catch (IOException e)
         {
-          throw new MetratecCommunicationException($"Reading from the port timed out - {sb}", e);
+          // Sanitize error message to prevent information disclosure
+          throw new MetratecCommunicationException("Reading from the network timed out", e);
         }
         catch (ObjectDisposedException e)
         {
@@ -381,6 +418,44 @@ namespace CommunicationInterfaces
     {
       return Read(_newlineString);
     }
+
+    #region IDisposable Implementation
+
+    /// <summary>
+    /// Releases all resources used by the EthernetInterface
+    /// </summary>
+    public void Dispose()
+    {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases the unmanaged resources used by the EthernetInterface and optionally releases the managed resources
+    /// </summary>
+    /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources</param>
+    protected virtual void Dispose(bool disposing)
+    {
+      if (!_disposed)
+      {
+        if (disposing)
+        {
+          // Dispose managed resources
+          Disconnect();
+        }
+        _disposed = true;
+      }
+    }
+
+    /// <summary>
+    /// Finalizer
+    /// </summary>
+    ~EthernetInterface()
+    {
+      Dispose(false);
+    }
+
+    #endregion
 
   }
 }

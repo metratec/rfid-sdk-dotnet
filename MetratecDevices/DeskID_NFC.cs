@@ -9,20 +9,20 @@ namespace MetraTecDevices
   /// all ISO14443-based transponders including all products from the NXP Mifare® series. This includes 
   /// not only Mifare Classic and Ultralight® but also NTAG transponders as well as the very secure Mifare DESFire® tags.
   /// </summary>
-  public class DeskID_NFC : NfcReader
+  public class DeskID_NFC : MetratecReaderATNfc
   {
     #region Constructor
     /// <summary>The constructor of the DeskID_NFC object</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_NFC(string portName, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), logger, id) { }
+    public DeskID_NFC(string portName, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), logger, id) { }
 
     /// <summary>The constructor of the DeskID_NFC object</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_NFC(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public DeskID_NFC(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
     #endregion
 
     #region Public Methods

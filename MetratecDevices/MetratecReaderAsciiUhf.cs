@@ -9,7 +9,7 @@ namespace MetraTecDevices
   /// <summary>
   /// The reader class for the metratec uhf readers based on the Ascii protocol
   /// </summary>
-  public class UhfReaderAscii : MetratecReaderAscii<UhfTag>
+  public class MetratecReaderAsciiUhf : MetratecReaderAscii<UhfTag>
   {
     #region Properties
 
@@ -30,13 +30,13 @@ namespace MetraTecDevices
     #region Constructor
 
     /// <summary>
-    /// Create a new instance of the UhfReaderAscii class.
+    /// Create a new instance of the MetratecReaderAsciiUhf class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public UhfReaderAscii(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(connection, logger, id)
+    public MetratecReaderAsciiUhf(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(connection, logger, id)
     {
       _rfidStandard = mode;
     }
@@ -47,11 +47,9 @@ namespace MetraTecDevices
 
     #region Reader Settings
     /// <inheritdoc/>
-    public override void EnableCrcCheck(bool enable = true)
+    protected override void PrepareReader()
     {
-      base.EnableCrcCheck(enable);
-      // update input event setting
-      EnableInputEvents();
+      base.PrepareReader();
     }
     /// <summary>
     /// Set the rfid region standard to use
@@ -101,7 +99,7 @@ namespace MetraTecDevices
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    protected void EnableAdditionalTRS(bool enable)
+    public void EnableAdditionalTRS(bool enable)
     {
       SetCommand($"SET TRS {(enable ? "ON" : "OFF")}");
       _addTRS = enable;
@@ -435,7 +433,11 @@ namespace MetraTecDevices
       int oldBlock01 = -1;
       foreach (UhfTag tag in tags)
       {
-        int data = int.Parse(tag.Data!, System.Globalization.NumberStyles.HexNumber) & 0x7ff;
+        if (tag.Data == null || !int.TryParse(tag.Data, System.Globalization.NumberStyles.HexNumber, null, out var parsedData))
+        {
+          throw new MetratecReaderException($"Invalid tag data format: {tag.Data ?? "null"}");
+        }
+        int data = parsedData & 0x7ff;
         if (-1 == oldBlock01)
         {
           oldBlock01 = data;
@@ -684,7 +686,7 @@ namespace MetraTecDevices
     protected override void HandleInventoryResponse(string response)
     {
       Logger.LogTrace("Handle Inventory - {}", response);
-      _lastInventory = ParseInventory(SplitResponse(response), new DateTime());
+      _lastInventory = ParseInventory(SplitResponse(response), DateTime.Now);
       if (_inventoryIsEvent && _lastInventory.Count > 0)
       {
         FireInventoryEvent(_lastInventory, _continuousStarted);
@@ -714,9 +716,9 @@ namespace MetraTecDevices
           SetCommand("SEC EDGE 1 NONE");
         }
       }
-      catch (MetratecReaderException)
+      catch (MetratecReaderException ex)
       {
-        Logger.LogDebug("Inputs events disabled");
+        Logger.LogDebug("Input events could not be enabled: {}", ex.Message);
       }
     }
 
@@ -738,13 +740,28 @@ namespace MetraTecDevices
           {
             case '-':
               // should not happen
-              tag!.RSSI = int.Parse(s);
+              if (int.TryParse(s, out var rssi))
+              {
+                tag!.RSSI = rssi;
+              }
+              else
+              {
+                Logger.LogWarning("Invalid RSSI value: {}", s);
+              }
               continue;
             case 'A':
               if (s.StartsWith("ARP"))
               {
                 // RESPONSE_ANTENNA_REPORT
-                CurrentAntennaPort = int.Parse(s[4..]);
+                if (s.Length < 5)
+                {
+                  throw new MetratecReaderException($"Invalid antenna report format: {s}");
+                }
+                if (!int.TryParse(s[4..], out var antennaPort))
+                {
+                  throw new MetratecReaderException($"Invalid antenna port value: {s[4..]}");
+                }
+                CurrentAntennaPort = antennaPort;
                 foreach (UhfTag item in tags)
                 {
                   item.Antenna = CurrentAntennaPort;
@@ -870,7 +887,14 @@ namespace MetraTecDevices
           }
           if (_addTRS)
           {
-            tag.RSSI = int.Parse(answers[++i]);
+            if (i + 1 < answers.Length && int.TryParse(answers[++i], out var rssiValue))
+            {
+              tag.RSSI = rssiValue;
+            }
+            else
+            {
+              Logger.LogWarning("Invalid RSSI value at index {}: {}", i, i < answers.Length ? answers[i] : "out of bounds");
+            }
           }
           tags.Add(tag);
           if (_parseMemory)
@@ -996,5 +1020,25 @@ namespace MetraTecDevices
   }
 
   #endregion Configuration Enums
+
+  #region Backward Compatibility Aliases
+
+  /// <summary>
+  /// Backward compatibility alias for MetratecReaderAsciiUhf
+  /// </summary>
+  [Obsolete("Use MetratecReaderAsciiUhf instead", false)]
+  public class UhfReaderAscii : MetratecReaderAsciiUhf
+  {
+    /// <summary>
+    /// Create a new instance of the UhfReaderAscii class.
+    /// </summary>
+    /// <param name="connection">The connection interface</param>
+    /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public UhfReaderAscii(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(connection, mode, logger, id) { }
+  }
+
+  #endregion Backward Compatibility Aliases
 
 }

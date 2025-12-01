@@ -8,20 +8,20 @@ namespace MetraTecDevices
   /// Typical applications include customer management (e.g. in sports studios), the configuration of transponders
   /// in automation systems, and all other applications in which ISO15693 RFID tags need to be read with a PC or notebook computer. 
   /// </summary>
-  public class DeskID_ISO : HfReaderAscii
+  public class DeskID_ISO : MetratecReaderAsciiHf
   {
     #region Constructor
     /// <summary>The constructor of the DeskID_ISO object</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_ISO(string portName, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), logger, id) { }
+    public DeskID_ISO(string portName, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), logger, id) { }
 
     /// <summary>The constructor of the DeskID_ISO object</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_ISO(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public DeskID_ISO(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
     #endregion
 
     #region Public Methods

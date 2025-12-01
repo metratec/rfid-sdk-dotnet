@@ -9,7 +9,7 @@ namespace MetraTecDevices
   /// <summary>
   /// The reader class for the metratec uhf readers based on the AT protocol
   /// </summary>
-  public class UhfReaderAT : MetratecReaderAT<UhfTag>
+  public class MetratecReaderATUhf : MetratecReaderAT<UhfTag>
   {
     #region Properties
 
@@ -24,12 +24,12 @@ namespace MetraTecDevices
     #region Constructor
 
     /// <summary>
-    /// Create a new instance of the UhfReaderAT class.
+    /// Create a new instance of the MetratecReaderATUhf class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public UhfReaderAT(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
+    public MetratecReaderATUhf(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id)
     {
     }
 
@@ -51,15 +51,36 @@ namespace MetraTecDevices
       {
         return _inventorySettings;
       }
-      string[] split = SplitLine(GetCommand("AT+INVS?")[7..]); // +INVS: ONT,RSSI,TID,FAST_START,PHASE,SELECT,TARGET,RSSI_THRESHOLD
+      string response = GetCommand("AT+INVS?");
+      if (response.Length < 8)
+      {
+        throw new MetratecReaderException("Invalid inventory settings response format");
+      }
+      string[] split = SplitLine(response[7..]); // +INVS: ONT,RSSI,TID,FAST_START,PHASE,SELECT,TARGET,RSSI_THRESHOLD
+      if (split.Length < 7)
+      {
+        throw new MetratecReaderException("Insufficient inventory settings parameters");
+      }
       _inventorySettingsVersion = split.Length;
-      _inventorySettings = new InventorySettings(split[0] == "1", split[1] == "1",
-                                                 split[2] == "1", split[3] == "1",
-                                                 split[4] == "1", 
-                                                 (InventorySettingsSelect)Enum.Parse(typeof(InventorySettingsSelect), split[5]),
-                                                 (InventorySettingsTarget)Enum.Parse(typeof(InventorySettingsTarget), split[6]), 
-                                                 _inventorySettingsVersion >= 8 ? int.Parse(split[7]) : -100
-                                                 );
+      
+      try
+      {
+        var selectEnum = Enum.TryParse<InventorySettingsSelect>(split[5], out var selectValue) ? selectValue : InventorySettingsSelect.ALL;
+        var targetEnum = Enum.TryParse<InventorySettingsTarget>(split[6], out var targetValue) ? targetValue : InventorySettingsTarget.A;
+        var rssiThreshold = (_inventorySettingsVersion >= 8 && split.Length > 7 && int.TryParse(split[7], out var rssi)) ? rssi : -100;
+        
+        _inventorySettings = new InventorySettings(split[0] == "1", split[1] == "1",
+                                                   split[2] == "1", split[3] == "1",
+                                                   split[4] == "1", 
+                                                   selectEnum,
+                                                   targetEnum, 
+                                                   rssiThreshold
+                                                   );
+      }
+      catch (Exception ex)
+      {
+        throw new MetratecReaderException($"Error parsing inventory settings: {ex.Message}", ex);
+      }
       return _inventorySettings;
     }
     /// <summary>
@@ -88,12 +109,29 @@ namespace MetraTecDevices
     {
       string response = GetCommand("AT+Q?");
       // +Q: 4,2,15
-      string[] values = SplitLine(response[4..]);
-      TagCountSetting setting = new((int)Math.Pow(2, int.Parse(values[0])));
-      if (values.Length > 1)
+      if (response.Length < 5)
       {
-        setting.Min = (int)Math.Pow(2, int.Parse(values[1]));
-        setting.Max = (int)Math.Pow(2, int.Parse(values[2]));
+        throw new MetratecReaderException("Invalid tag count setting response format");
+      }
+      string[] values = SplitLine(response[4..]);
+      if (values.Length == 0)
+      {
+        throw new MetratecReaderException("No tag count setting values found");
+      }
+      
+      if (!int.TryParse(values[0], out var value0))
+      {
+        throw new MetratecReaderException($"Invalid tag count value: {values[0]}");
+      }
+      TagCountSetting setting = new((int)Math.Pow(2, value0));
+      
+      if (values.Length > 2)
+      {
+        if (int.TryParse(values[1], out var value1) && int.TryParse(values[2], out var value2))
+        {
+          setting.Min = (int)Math.Pow(2, value1);
+          setting.Max = (int)Math.Pow(2, value2);
+        }
       }
       return setting;
     }
@@ -151,7 +189,15 @@ namespace MetraTecDevices
     {
       string response = GetCommand("AT+PWR?");
       //+PWR: 20
-      return int.Parse(response[6..]);
+      if (response.Length < 7)
+      {
+        throw new MetratecReaderException("Invalid power response format");
+      }
+      if (!int.TryParse(response[6..], out var power))
+      {
+        throw new MetratecReaderException($"Invalid power value: {response[6..]}");
+      }
+      return power;
     }
     /// <summary>
     /// Set the region
@@ -174,7 +220,16 @@ namespace MetraTecDevices
     {
       string response = GetCommand("AT+REG?");
       //+REG: ETSI
-      return (UHF_REGION)Enum.Parse(typeof(UHF_REGION), response[6..]);
+      if (response.Length < 7)
+      {
+        throw new MetratecReaderException("Invalid region response format");
+      }
+      string regionStr = response[6..];
+      if (!Enum.TryParse<UHF_REGION>(regionStr, out var region))
+      {
+        throw new MetratecReaderException($"Invalid region value: {regionStr}");
+      }
+      return region;
     }
     /// <summary>
     /// Set the reader mask
@@ -327,7 +382,8 @@ namespace MetraTecDevices
 
     #region Tag Commands
     /// <summary>
-    /// Scan for the current inventory
+    /// This method checks if a single antenna is configured or if multiple antennas are configured and scan than on a single or multiple antennas.
+    /// To control the behavior, use GetSingleInventory or GetMultipleInventory
     /// </summary>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
@@ -336,6 +392,38 @@ namespace MetraTecDevices
     {
       List<UhfTag> tags = SingleAntennaInUse ? ParseInventory(GetCommand("AT+INV"), "+INV: ".Length) :
                                              ParseInventory(GetCommand("AT+MINV", 4 * ResponseTimeout), "+MINV: ".Length);
+      FireInventoryEvent(tags, false);
+      return tags;
+    }
+
+
+
+#pragma warning disable CS1574 // XML comment has cref attribute that could not be resolved
+    /// <summary>
+    /// Scan the current inventory on the configured single antenna (<see cref="SetAntenna(int)"/>)
+    /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+#pragma warning restore CS1574 // XML comment has cref attribute that could not be resolved
+    public List<UhfTag> GetSingleInventory()
+    {
+      List<UhfTag> tags = ParseInventory(GetCommand("AT+INV"), "+INV: ".Length);
+      FireInventoryEvent(tags, false);
+      return tags;
+    }
+
+#pragma warning disable CS1574 // XML comment has cref attribute that could not be resolved
+    /// <summary>
+    /// Scan the current inventory on all configured multiplex antenna (<see cref="SetAntennaMultiplex(int)"/> or <see cref="SetAntennaMultiplex(List{int})"/>)
+    /// </summary>
+    /// <exception cref="MetratecReaderException">
+    /// If the reader is not connected or an error occurs, further details in the exception message
+    /// </exception>
+#pragma warning restore CS1574 // XML comment has cref attribute that could not be resolved
+    public List<UhfTag> GetMultipleInventory()
+    {
+      List<UhfTag> tags = ParseInventory(GetCommand("AT+MINV", 16 * ResponseTimeout), "+MINV: ".Length);
       FireInventoryEvent(tags, false);
       return tags;
     }
@@ -393,6 +481,7 @@ namespace MetraTecDevices
         {
           throw;
         }
+        Logger.LogDebug("Stop inventory report command ignored - inventory report was not running: {}", e.Message);
       }
     }
     /// <summary>
@@ -790,6 +879,7 @@ namespace MetraTecDevices
       // +INV: 0209202015604090990000145549021C,E200600311753F23,1807
       // available messages: <Antenna Error> <NO TAGS FOUND> <ROUND FINISHED, ANT=2>
       DateTime timestamp = DateTime.Now;
+      List<UhfTag> inventory = new();
       List<UhfTag> tags = new();
       int antenna = -1;
       string error = "";
@@ -806,11 +896,24 @@ namespace MetraTecDevices
           switch (split[0][1])
           {
             case 'R': //Round finished
-              antenna = int.Parse(split[1].Substring(5, 1));
-              foreach (UhfTag tag in tags)
+              if (split.Length > 1)
               {
-                tag.Antenna = antenna;
+                // additional antenna port info
+                if (split[1].Length < 6)
+                {
+                  throw new MetratecReaderException($"Invalid antenna format in response: {split[1]}");
+                }
+                if (!int.TryParse(split[1].Substring(5, 1), out antenna))
+                {
+                  throw new MetratecReaderException($"Invalid antenna value: {split[1].Substring(5, 1)}");
+                }
+                foreach (UhfTag tag in tags)
+                {
+                  tag.Antenna = antenna;
+                }
               }
+              inventory.AddRange(tags);
+              tags.Clear();
               break;
             case 'N': // No Tags
               break;
@@ -833,16 +936,51 @@ namespace MetraTecDevices
           }
           if (_inventorySettings!.WithRssi)
           {
-            tag.RSSI = int.Parse(split[index++]);
+            if (index < split.Length && int.TryParse(split[index], out var rssi))
+            {
+              tag.RSSI = rssi;
+              index++;
+            }
+            else
+            {
+              Logger.LogWarning("Invalid RSSI value in response: {}", index < split.Length ? split[index] : "missing");
+              index++;
+            }
           }
           if (!isReport && _inventorySettings!.WithPhase){
             tag.Phase = new int[2];
-            tag.Phase[0] = int.Parse(split[index++]);
-            tag.Phase[1] = int.Parse(split[index++]);
+            if (index < split.Length && int.TryParse(split[index], out var phase0))
+            {
+              tag.Phase[0] = phase0;
+              index++;
+            }
+            else
+            {
+              Logger.LogWarning("Invalid phase[0] value in response: {}", index < split.Length ? split[index] : "missing");
+              index++;
+            }
+            
+            if (index < split.Length && int.TryParse(split[index], out var phase1))
+            {
+              tag.Phase[1] = phase1;
+              index++;
+            }
+            else
+            {
+              Logger.LogWarning("Invalid phase[1] value in response: {}", index < split.Length ? split[index] : "missing");
+              index++;
+            }
           }
           if (isReport)
           {
-            tag.SeenCount = int.Parse(split[^1]);
+            if (split.Length > 0 && int.TryParse(split[^1], out var seenCount))
+            {
+              tag.SeenCount = seenCount;
+            }
+            else
+            {
+              Logger.LogWarning("Invalid seen count value in response: {}", split.Length > 0 ? split[^1] : "missing");
+            }
           }
           tags.Add(tag);
         }
@@ -850,7 +988,7 @@ namespace MetraTecDevices
         {
           if (null == _inventorySettings)
           {
-            // not initialised - ignore
+            Logger.LogDebug("Inventory parsing skipped - settings not initialized: {}", e.Message);
             return tags;
           }
           Logger.LogWarning("Inventory warning ({}) - {}", tagInfo, e.Message);
@@ -867,7 +1005,7 @@ namespace MetraTecDevices
           tag.Antenna = 0;
         }
       }
-      return tags;
+      return inventory.Count > 0 ? inventory : tags;
     }
     private List<UhfTag> ParseInventoryReport(string response, int prefixLength)
     {
@@ -891,43 +1029,19 @@ namespace MetraTecDevices
     }
     #endregion Private Methods
 
-
-
     #region Configuration Enums
-
-
 
     #endregion Configuration Enums
 
     #region Response Classes
 
-
-
     #endregion Response Classes
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
-
 
   }
   /// <summary>
   /// The reader class for the metratec uhf readers based on the AT protocol and with IO support
   /// </summary>
-  public class UhfReaderATIO : UhfReaderAT
+  public class UhfReaderATIO : MetratecReaderATUhf
   {
     #region Internal Variables
     private List<int> currentAntennaPowers = new();
@@ -942,7 +1056,7 @@ namespace MetraTecDevices
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public UhfReaderATIO(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
+    public UhfReaderATIO(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id)
     {
     }
     #endregion Constructor
@@ -1076,7 +1190,14 @@ namespace MetraTecDevices
       }
       else
       {
-        return new HighOnTagSetting(int.Parse(split[0]), int.Parse(split[1]));
+        if (int.TryParse(split[0], out var outputPin) && int.TryParse(split[1], out var duration))
+        {
+          return new HighOnTagSetting(outputPin, duration);
+        }
+        else
+        {
+          throw new MetratecReaderException($"Invalid high on tag setting values: {split[0]}, {split[1]}");
+        }
       }
     }
 
@@ -1108,7 +1229,18 @@ namespace MetraTecDevices
     protected List<int> GetCurrentAntennaPowers()
     {
       String[] split = SplitLine(GetCommand("AT+PWR?")[6..]);
-      List<int> antennaPowers = split.Select(x => int.Parse(x)).ToList();
+      List<int> antennaPowers = new();
+      foreach (var item in split)
+      {
+        if (int.TryParse(item, out var power))
+        {
+          antennaPowers.Add(power);
+        }
+        else
+        {
+          throw new MetratecReaderException($"Invalid antenna power value: {item}");
+        }
+      }
       this.currentAntennaPowers = antennaPowers;
       return new List<int>(antennaPowers);
     }
@@ -1134,7 +1266,18 @@ namespace MetraTecDevices
     protected List<int> GetCurrentConnectedMultiplexer()
     {
       String[] split = SplitLine(GetCommand("AT+EMX?")[6..]);
-      List<int> multiplexer = split.Select(x => int.Parse(x)).ToList();
+      List<int> multiplexer = new();
+      foreach (var item in split)
+      {
+        if (int.TryParse(item, out var value))
+        {
+          multiplexer.Add(value);
+        }
+        else
+        {
+          throw new MetratecReaderException($"Invalid multiplexer value: {item}");
+        }
+      }
       this.currentConnectedMultiplexer = multiplexer;
       return new List<int>(multiplexer);
     }
@@ -1494,4 +1637,24 @@ namespace MetraTecDevices
   }
 
   #endregion Configuration Enums
+
+  #region Backward Compatibility Aliases
+
+  /// <summary>
+  /// Backward compatibility alias for MetratecReaderATUhf
+  /// </summary>
+  [Obsolete("Use MetratecReaderATUhf instead", false)]
+  public class UhfReaderAT : MetratecReaderATUhf
+  {
+    /// <summary>
+    /// Create a new instance of the UhfReaderAT class.
+    /// </summary>
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public UhfReaderAT(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
+  }
+
+  #endregion Backward Compatibility Aliases
+
 }

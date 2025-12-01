@@ -5,21 +5,22 @@ using MetraTecDevices;
 namespace ReaderExamples
 {
   /// <summary>
-  /// Examples demonstrating DeskID UHF reader operations for Ultra High Frequency (UHF) RFID tags.
-  /// Shows usage of both DeskID_UHF_v2 (AT protocol) and DeskID_UHF (legacy) readers for EPC Gen2 tags.
+  /// Examples demonstrating DeskID_UHF (Legacy) reader operations for Ultra High Frequency (UHF) RFID tags.
+  /// This is the legacy version that uses ASCII protocol, different from the newer DeskID_UHF_v2 (AT protocol).
+  /// Shows serial connection setup, inventory operations, and tag memory access for EPC Gen2 tags.
   /// </summary>
-  internal class DeskidUhfExamples
+  internal class DeskidUhfLegacyExamples
   {
     /// <summary>
-    /// Demonstrates basic UHF inventory operations using the newer DeskID_UHF_v2 reader.
-    /// Shows how to detect EPC Gen2 tags and handle inventory events with power control.
+    /// Demonstrates basic UHF inventory operations using the legacy DeskID_UHF reader with ASCII protocol.
+    /// Shows how to detect EPC Gen2 tags and handle inventory events with proper error handling.
     /// </summary>
     public static void InventoryExample()
     {
-      // Create the reader instance using serial communication (DeskID_UHF_v2 uses AT protocol)
-      // Note: Update "/dev/ttyACM0" to match your actual device path (Linux/Mac) or "COM#" for Windows
-      String port = "/dev/ttyACM0";
-      DeskID_UHF_v2 reader = new DeskID_UHF_v2(port);
+      // Create the legacy reader instance using serial communication (ASCII protocol)
+      // Note: Update "/dev/ttyUSB0" to match your actual device path (Linux/Mac) or "COM#" for Windows
+      String port = "/dev/ttyUSB0";
+      DeskID_UHF reader = new DeskID_UHF(port, REGION.ETS); // ETSI for Europe
 
       // Subscribe to reader connection status changes (Connected/Disconnected)
       reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} Reader status changed to {e.Message} ({e.Status})");
@@ -30,10 +31,8 @@ namespace ReaderExamples
         Console.WriteLine($"{e.Timestamp} New inventory event! {e.Tags.Count} UHF Tag(s) found");
         foreach (UhfTag tag in e.Tags)
         {
-          // Display EPC which is the primary identifier for UHF tags
-          Console.WriteLine(
-            $"  EPC: {tag.EPC}" +
-            (!string.IsNullOrEmpty(tag.TID) ? $" | TID: {tag.TID}" : "") +
+          // Display comprehensive UHF tag information
+          Console.WriteLine($"  EPC: {tag.EPC}" + 
             (tag.RSSI != null ? $" | RSSI: {tag.RSSI} dBm" : ""));
         }
       };
@@ -41,9 +40,11 @@ namespace ReaderExamples
       // Establish connection to the reader with 2-second timeout
       try
       {
-        Console.WriteLine($"Connecting to DeskID_UHF_v2 on port {port}...");
+        Console.WriteLine("Connecting to DeskID_UHF (Legacy)...");
         reader.Connect(2000);
         Console.WriteLine("Connection established!");
+        Console.WriteLine($"Reader Firmware: {reader.FirmwareVersion}");
+        Console.WriteLine($"Protocol: ASCII (Legacy)");
       }
       catch (MetratecReaderException e)
       {
@@ -54,34 +55,28 @@ namespace ReaderExamples
         Console.WriteLine("- Ensure DeskID_UHF driver is installed");
         Console.WriteLine("- Check if another application is using the COM port");
         Console.WriteLine("- Verify reader is powered on");
+        Console.WriteLine("- Note: This is for legacy DeskID_UHF, not DeskID_UHF_v2");
         return;
       }
 
       try
       {
-        // Set reader transmission power (1-20 dBm, higher values = longer range but more interference)
-        // Adjust based on your environment and tag distance requirements
-        reader.SetPower(5);
-        Console.WriteLine("Reader power set to 5 dBm");
+        // Set reader transmission power (-2 to 17 dBm for legacy DeskID_UHF)
+        // Lower range compared to newer readers, but sufficient for desktop use
+        reader.SetPower(1);
+        Console.WriteLine("Reader power set to 1 dBm");
 
-        // Configure advanced inventory settings
-        InventorySettings invSettings = reader.GetInventorySettings();
-        invSettings.WithRssi = true;        // Include signal strength (RSSI) in responses
-        invSettings.WithTid = true;         // Include Tag Identifier (TID) for additional tag info
-        invSettings.OnlyNewTag = false;     // Report all tags, not just newly detected ones
-        reader.SetInventorySettings(invSettings);
+        // Note: Legacy DeskID_UHF has simpler inventory settings compared to v2
+        // No advanced inventory settings like RSSI/TID control available
 
         // Perform a single inventory scan to detect currently present tags
-        // This also triggers the NewInventory event if listeners are registered
         Console.WriteLine("\nPerforming single inventory scan...");
-        List<UhfTag> tags = reader.GetSingleInventory();
+        List<UhfTag> tags = reader.GetInventory();
         Console.WriteLine($"Current inventory: {tags.Count} UHF Tag(s) found");
 
         foreach (UhfTag tag in tags)
         {
-          Console.WriteLine(
-            $"  EPC: {tag.EPC}" +
-            (!string.IsNullOrEmpty(tag.TID) ? $" | TID: {tag.TID}" : "") +
+          Console.WriteLine($"EPC: {tag.EPC}" + 
             (tag.RSSI != null ? $" | RSSI: {tag.RSSI} dBm" : ""));
         }
 
@@ -98,6 +93,12 @@ namespace ReaderExamples
       catch (MetratecReaderException ex)
       {
         Console.WriteLine($"Error during operation: {ex.Message}");
+        Console.WriteLine("\nPossible causes:");
+        Console.WriteLine("- No UHF tags in range (place tag closer to reader)");
+        Console.WriteLine("- Tag orientation issues (try different angles)");
+        Console.WriteLine("- RF interference in UHF band");
+        Console.WriteLine("- Reader antenna problems");
+        Console.WriteLine("- Legacy firmware limitations");
       }
       finally
       {
@@ -112,14 +113,14 @@ namespace ReaderExamples
 
     /// <summary>
     /// Demonstrates reading and writing user data to UHF tag memory using the legacy DeskID_UHF reader.
-    /// Shows how to access the User memory bank of EPC Gen2 tags with proper error handling.
+    /// Shows how to access the User memory bank of EPC Gen2 tags with ASCII protocol commands.
     /// </summary>
     public static void ReadWriteExample()
     {
-      // Create the reader instance using serial communication (legacy DeskID_UHF)
-      // Note: Update "/dev/ttyACM0" to match your actual device path (Linux/Mac) or "COM#" for Windows
-      String port = "/dev/ttyACM0";
-      DeskID_UHF_v2 reader = new DeskID_UHF_v2(port);
+      // Create the legacy reader instance using serial communication
+      // Note: Update "/dev/ttyUSB0" to match your actual device path (Linux/Mac) or "COM#" for Windows
+      String port = "/dev/ttyUSB0";
+      DeskID_UHF reader = new DeskID_UHF(port, REGION.ETS);
 
       // Subscribe to reader connection status changes
       reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} Reader status changed to {e.Message} ({e.Status})");
@@ -127,34 +128,36 @@ namespace ReaderExamples
       // Establish connection to the reader with 2-second timeout
       try
       {
-        Console.WriteLine($"Connecting to DeskID_UHF on port {port} for read/write operations...");
+        Console.WriteLine("Connecting to DeskID_UHF (Legacy) for read/write operations...");
         reader.Connect(2000);
         Console.WriteLine("Connection established!");
+        Console.WriteLine($"Using ASCII protocol with firmware: {reader.FirmwareVersion}");
       }
       catch (MetratecReaderException e)
       {
         Console.WriteLine($"Cannot connect to reader ({e.Message}). Program exits");
         Console.WriteLine("\nTroubleshooting:");
         Console.WriteLine("- Check USB cable connection");
-        Console.WriteLine("- Verify COM port (currently set to COM8)");
+        Console.WriteLine($"- Verify COM port (currently set to {port})");
         Console.WriteLine("- Ensure DeskID_UHF driver is installed");
         Console.WriteLine("- Check if another application is using the COM port");
+        Console.WriteLine("- Verify this is legacy DeskID_UHF (not v2)");
         return;
       }
 
       try
       {
-        // Set reader transmission power for optimal performance
-        reader.SetPower(9);
-        Console.WriteLine("Reader power set to 9 dBm");
+        // Set reader transmission power for optimal read/write performance
+        reader.SetPower(5);
+        Console.WriteLine("Reader power set to 5 dBm for read/write operations");
 
         // Wait for a UHF tag to be placed on the reader
-        Console.WriteLine("Please place a UHF tag on the DeskID reader...");
+        Console.WriteLine("Please place a UHF tag on the DeskID_UHF reader...");
         List<UhfTag> tags;
         int attempts = 0;
         do
         {
-          tags = reader.GetSingleInventory();
+          tags = reader.GetInventory();
           if (tags.Count == 0)
           {
             attempts++;
@@ -163,6 +166,7 @@ namespace ReaderExamples
               Console.WriteLine($"No tags found after {attempts} attempts. Continuing to search...");
               Console.WriteLine("Make sure you have a UHF/EPC Gen2 compatible tag");
               Console.WriteLine("Try placing the tag closer to the reader antenna");
+              Console.WriteLine("Legacy DeskID_UHF has shorter range than newer models");
             }
             System.Threading.Thread.Sleep(1000);
           }
@@ -176,14 +180,14 @@ namespace ReaderExamples
 
         // Use the first detected tag for read/write operations
         UhfTag tag = tags[0];
-        Console.WriteLine($"UHF tag found: {tag.EPC}");
+        Console.WriteLine($"UHF tag found: {tag.EPC} " + (tag.RSSI != null ? $" | RSSI: {tag.RSSI} dBm" : ""));
 
         // Attempt to read user data from address 0 in the User memory bank
-        // Parameters: address (word offset), length (number of words to read)
-        Console.WriteLine("Reading user data from address 0...");
+        // Legacy DeskID_UHF uses ASCII protocol for read/write operations
+        Console.WriteLine("\nReading user data from address 0...");
         try
         {
-          List<UhfTag> resp = reader.ReadTagUsrData(0, 4, tag.EPC); // Read 4 bytes
+          List<UhfTag> resp = reader.ReadTagUsrData(0, 2); // Read 2 words = 4 bytes
 
           if (resp.Count == 0)
           {
@@ -192,11 +196,12 @@ namespace ReaderExamples
           else if (resp[0].HasError)
           {
             Console.WriteLine($"Error reading user data: {resp[0].Message}");
-            Console.WriteLine("\nPossible causes:");
+            Console.WriteLine("Possible causes:");
             Console.WriteLine("- Tag doesn't support user memory");
             Console.WriteLine("- Access password required");
             Console.WriteLine("- Tag moved out of range during read");
-            Console.WriteLine("- Tag orientation changed");
+            Console.WriteLine("- ASCII protocol limitations");
+            Console.WriteLine("- Legacy firmware restrictions");
           }
           else
           {
@@ -206,20 +211,15 @@ namespace ReaderExamples
         catch (MetratecReaderException ex)
         {
           Console.WriteLine($"Read operation failed: {ex.Message}");
-        }
-        finally
-        {
-          // Reset Reader Mask
-          reader.ResetMask();
+          Console.WriteLine("Note: Legacy DeskID_UHF may have limited read capabilities");
         }
 
         // Attempt to write user data to address 0 in the User memory bank
-        // Data format: hex string (each pair represents one byte)
-        string dataToWrite = "01020304"; // 4 bytes as hex string
-        Console.WriteLine($"Writing data '{dataToWrite}' to address 0...");
+        string dataToWrite = "ABCDEF01"; // 4 bytes as hex string
+        Console.WriteLine($"\nWriting data '{dataToWrite}' to address 0...");
         try
         {
-          List<UhfTag> resp = reader.WriteTagUsrData(0, dataToWrite, tag.EPC);
+          List<UhfTag> resp = reader.WriteTagUsrData(0, dataToWrite);
 
           if (resp.Count == 0)
           {
@@ -228,31 +228,32 @@ namespace ReaderExamples
           else if (resp[0].HasError)
           {
             Console.WriteLine($"Error writing user data: {resp[0].Message}");
-            Console.WriteLine("\nPossible causes:");
+            Console.WriteLine("Possible causes:");
             Console.WriteLine("- Tag is read-only or write-protected");
             Console.WriteLine("- Access password required");
             Console.WriteLine("- Tag moved out of range during write");
             Console.WriteLine("- Insufficient power for write operation");
             Console.WriteLine("- Tag doesn't support user memory writes");
+            Console.WriteLine("- ASCII protocol limitations");
           }
           else
           {
             Console.WriteLine("Data written successfully!");
           }
 
-          // Verify written data
-          Console.WriteLine("Verifying written data...");
-          List<UhfTag> verifyResp = reader.ReadTagUsrData(0, 4);
+          // Verify written data by reading it back
+          Console.WriteLine("\nVerifying written data...");
+          List<UhfTag> verifyResp = reader.ReadTagUsrData(0, 2);
           if (verifyResp.Count > 0 && !verifyResp[0].HasError)
           {
             Console.WriteLine($"Verification read: {verifyResp[0].Data}");
             if (verifyResp[0].Data?.ToUpper() == dataToWrite.ToUpper())
             {
-              Console.WriteLine("Data verification successful!");
+              Console.WriteLine("✓ Data verification successful!");
             }
             else
             {
-              Console.WriteLine("Data mismatch - write may have failed");
+              Console.WriteLine("⚠ Data mismatch - write may have failed");
             }
           }
         }
@@ -260,6 +261,30 @@ namespace ReaderExamples
         {
           Console.WriteLine($"Write operation failed: {ex.Message}");
         }
+
+        // Attempt to read TID (if supported by legacy firmware)
+        Console.WriteLine("\nAttempting TID read...");
+        try
+        {
+          List<UhfTag> tidResp = reader.ReadTagTid(0, 6); // Read 6 words of TID
+
+          if (tidResp.Count > 0 && !tidResp[0].HasError)
+          {
+            Console.WriteLine($"TID: {tidResp[0].TID}");
+            Console.WriteLine("TID contains manufacturer and tag model information");
+          }
+          else if (tidResp.Count > 0 && tidResp[0].HasError)
+          {
+            Console.WriteLine($"TID read not supported or failed: {tidResp[0].Message}");
+            Console.WriteLine("This is normal for legacy DeskID_UHF firmware");
+          }
+        }
+        catch (MetratecReaderException ex)
+        {
+          Console.WriteLine($"TID read not available: {ex.Message}");
+          Console.WriteLine("TID reading may not be supported in legacy firmware");
+        }
+
       }
       catch (MetratecReaderException ex)
       {
@@ -275,6 +300,5 @@ namespace ReaderExamples
         }
       }
     }
-
   }
 }

@@ -5,22 +5,22 @@ using MetraTecDevices;
 namespace ReaderExamples
 {
   /// <summary>
-  /// Examples demonstrating DeskID_ISO reader operations for High Frequency (HF) RFID tags.
-  /// This reader uses ASCII protocol to communicate with ISO15693 compatible tags.
-  /// Shows serial connection setup, inventory operations, and tag memory access.
+  /// Examples demonstrating Dwarf15 reader operations for High Frequency (HF) RFID tags.
+  /// This SMD module is designed for integration into custom electronics and supports ISO15693 tags.
+  /// Uses ASCII protocol over serial communication for embedded applications and IoT devices.
   /// </summary>
-  internal class DeskidIsoExamples
+  internal class Dwarf15Examples
   {
     /// <summary>
-    /// Demonstrates basic HF inventory operations including single scan and continuous scanning.
+    /// Demonstrates basic HF inventory operations using the Dwarf15 SMD module.
     /// Shows how to detect ISO15693 tags and handle inventory events with proper error handling.
     /// </summary>
     public static void InventoryExample()
     {
-      // Create the reader instance using serial communication
+      // Create the Dwarf15 SMD module instance using serial communication
       // Note: Update "/dev/ttyUSB0" to match your actual device path (Linux/Mac) or "COM#" for Windows
       String port = "/dev/ttyUSB0";
-      DeskID_ISO reader = new DeskID_ISO(port);
+      Dwarf15 reader = new Dwarf15(port);
 
       // Subscribe to reader connection status changes (Connected/Disconnected)
       reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} Reader status changed to {e.Message} ({e.Status})");
@@ -38,33 +38,47 @@ namespace ReaderExamples
       // Establish connection to the reader with 2-second timeout
       try
       {
-        Console.WriteLine($"Connecting to DeskID_ISO on port {port}...");
+        Console.WriteLine("Connecting to Dwarf15 SMD module...");
         reader.Connect(2000);
         Console.WriteLine("Connection established!");
+        Console.WriteLine($"Reader Firmware: {reader.FirmwareVersion}");
+        Console.WriteLine($"Protocol: ASCII (SMD Module)");
       }
       catch (MetratecReaderException e)
       {
         Console.WriteLine($"Cannot connect to reader ({e.Message}). Program exits");
         Console.WriteLine("\nTroubleshooting:");
-        Console.WriteLine("- Check USB cable connection");
-        Console.WriteLine("- Verify COM port (currently set to COM7)");
-        Console.WriteLine("- Ensure DeskID_ISO driver is installed");
+        Console.WriteLine("- Check USB to serial adapter connection");
+        Console.WriteLine($"- Verify COM port (currently set to {port})");
+        Console.WriteLine("- Ensure Dwarf15 module is properly powered");
         Console.WriteLine("- Check if another application is using the COM port");
-        Console.WriteLine("- Verify reader is powered on");
+        Console.WriteLine("- Verify serial cable wiring (TX/RX, GND)");
+        Console.WriteLine("- Check power supply voltage (3.3V or 5V depending on variant)");
         return;
       }
 
       try
       {
+        // Set reader transmission power (100 or 200 mW)
+        try
+        {
+          reader.SetPower(100);
+          Console.WriteLine("Reader power set to 100");
+        }
+        catch (MetratecReaderException ex)
+        {
+          Console.WriteLine($"Power setting not supported: {ex.Message}");
+          Console.WriteLine("Continuing with default power settings...");
+        }
+
         // Perform a single inventory scan to detect currently present tags
-        // This also triggers the NewInventory event if listeners are registered
         Console.WriteLine("\nPerforming single inventory scan...");
         List<HfTag> tags = reader.GetInventory();
         Console.WriteLine($"Current inventory: {tags.Count} HF Tag(s) found");
 
         foreach (HfTag tag in tags)
         {
-          Console.WriteLine($"TID: {tag.TID}");
+          Console.WriteLine($"  TID: {tag.TID}");
         }
 
         // Start continuous inventory scanning in the background
@@ -81,11 +95,12 @@ namespace ReaderExamples
       {
         Console.WriteLine($"Error during operation: {ex.Message}");
         Console.WriteLine("\nPossible causes:");
-        Console.WriteLine("- No HF/ISO15693 tags in range");
-        Console.WriteLine("- RF interference in 13.56 MHz band");
-        Console.WriteLine("- Tag orientation or distance issues");
-        Console.WriteLine("- Reader antenna problems");
-        Console.WriteLine("- Wrong tag type (ensure ISO15693 compatibility)");
+        Console.WriteLine("- No HF/ISO15693 tags in range (place tag closer to module)");
+        Console.WriteLine("- Tag orientation issues (try different angles)");
+        Console.WriteLine("- RF interference in HF band (13.56 MHz)");
+        Console.WriteLine("- Module antenna coupling problems");
+        Console.WriteLine("- Power supply instability in embedded system");
+        Console.WriteLine("- Serial communication issues");
       }
       finally
       {
@@ -99,41 +114,43 @@ namespace ReaderExamples
     }
 
     /// <summary>
-    /// Demonstrates reading and writing data to HF tag memory blocks.
-    /// Shows block-level data access for ISO15693 tags with comprehensive error handling.
+    /// Demonstrates reading and writing user data to HF tag memory using the Dwarf15 SMD module.
+    /// Shows how to access ISO15693 tag memory blocks for custom data storage in embedded applications.
     /// </summary>
     public static void ReadWriteExample()
     {
-      // Create the reader instance using serial communication
+      // Create the Dwarf15 SMD module instance using serial communication
       // Note: Update "/dev/ttyUSB0" to match your actual device path (Linux/Mac) or "COM#" for Windows
       String port = "/dev/ttyUSB0";
-      DeskID_ISO reader = new DeskID_ISO(port);
+      Dwarf15 reader = new Dwarf15(port);
 
       // Subscribe to reader connection status changes
-      reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} Reader status changed to {e.Message} ({e.Status})");
+      reader.StatusChanged += (s, e) => Console.WriteLine($"Reader status changed to {e.Message} ({e.Status})");
 
       // Establish connection to the reader with 2-second timeout
       try
       {
-        Console.WriteLine($"Connecting to DeskID_ISO on port {port} for read/write operations...");
+        Console.WriteLine("Connecting to Dwarf15 SMD module for read/write operations...");
         reader.Connect(2000);
         Console.WriteLine("Connection established!");
+        Console.WriteLine($"Using ASCII protocol with firmware: {reader.FirmwareVersion}");
       }
       catch (MetratecReaderException e)
       {
         Console.WriteLine($"Cannot connect to reader ({e.Message}). Program exits");
         Console.WriteLine("\nTroubleshooting:");
-        Console.WriteLine("- Check USB cable connection");
-        Console.WriteLine("- Verify COM port (currently set to COM7)");
-        Console.WriteLine("- Ensure DeskID_ISO driver is installed");
-        Console.WriteLine("- Check if another application is using the COM port");
+        Console.WriteLine("- Check USB to serial adapter connection");
+        Console.WriteLine($"- Verify COM port (currently set to {port})");
+        Console.WriteLine("- Ensure Dwarf15 module is properly powered");
+        Console.WriteLine("- Check serial communication settings (baud rate, parity)");
+        Console.WriteLine("- Verify this is a Dwarf15 (HF) module, not DwarfG2 (UHF)");
         return;
       }
 
       try
       {
-        // Wait for an HF tag to be placed on the reader
-        Console.WriteLine("Please place an ISO15693 tag on the DeskID_ISO reader...");
+        // Wait for an HF tag to be placed near the reader
+        Console.WriteLine("Please place an HF/ISO15693 tag near the Dwarf15 module...");
         List<HfTag> tags;
         int attempts = 0;
         do
@@ -145,8 +162,9 @@ namespace ReaderExamples
             if (attempts % 5 == 0)
             {
               Console.WriteLine($"No tags found after {attempts} attempts. Continuing to search...");
-              Console.WriteLine("Make sure you have an ISO15693 compatible tag");
-              Console.WriteLine("Try placing the tag closer to the reader antenna");
+              Console.WriteLine("Make sure you have an HF/ISO15693 compatible tag");
+              Console.WriteLine("Try placing the tag closer to the module antenna");
+              Console.WriteLine("SMD modules typically have shorter range than desktop readers");
             }
             System.Threading.Thread.Sleep(1000);
           }
@@ -160,56 +178,54 @@ namespace ReaderExamples
 
         // Use the first detected tag for read/write operations
         HfTag tag = tags[0];
-        Console.WriteLine($"HF tag found:");
-        Console.WriteLine($"  TID: {tag.TID}");
+        Console.WriteLine($"HF tag found: {tag.TID}");
 
-        // Attempt to read data from memory block 0 (usually contains tag info)
-        Console.WriteLine("\nReading data from memory block 0...");
+        // Attempt to read data from block 4 (user memory area)
+        // ISO15693 tags typically have user memory starting from block 4
+        Console.WriteLine("\nReading user data from block 4...");
         try
         {
-          // Read 4 bytes from block 0 using the tag's UID/TID
-          string resp = reader.ReadBlock(0, tag.TID);
-          Console.WriteLine($"Read data from block 0: {resp}");
-        }
-        catch (TransponderException e)
-        {
-          Console.WriteLine($"Error reading block 0: {e.Message}");
-          Console.WriteLine("Possible causes:");
-          Console.WriteLine("- Block is protected or locked");
-          Console.WriteLine("- Tag moved out of range during read");
-          Console.WriteLine("- Unsupported block address");
-          Console.WriteLine("- Tag communication error");
+          Console.WriteLine("\nReading data from memory block 0...");
+          try
+          {
+            String response = reader.ReadBlock(0, tag.TID); // Read 1 block
+            Console.WriteLine($"Read data from block 0: {response}");
+          }
+          catch (MetratecReaderException ex)
+          {
+            Console.WriteLine($"Read operation failed: {ex.Message}");
+            Console.WriteLine("Possible causes:");
+            Console.WriteLine("- Block is protected or locked");
+            Console.WriteLine("- Tag moved out of range during read");
+            Console.WriteLine("- Unsupported memory layout");
+          }
         }
         catch (MetratecReaderException ex)
         {
-          Console.WriteLine($"Reader error during read: {ex.Message}");
+          Console.WriteLine($"Read operation failed: {ex.Message}");
+          Console.WriteLine("Note: Some ISO15693 tags may have different memory layouts");
         }
 
-        // Attempt to write new data to memory block 1 (avoiding block 0 which may contain system data)
-        string dataToWrite = "01020304"; // 4 bytes as hex string
+        // Write data to tag memory block 1 (avoiding block 0 which may contain system data)
+        string dataToWrite = "12345678"; // 4 bytes as hex string (8 hex characters)
         Console.WriteLine($"\nWriting data '{dataToWrite}' to memory block 1...");
         try
         {
-          // Write 4 bytes to block 1
           reader.WriteBlock(1, dataToWrite, tag.TID);
           Console.WriteLine("Data written successfully to block 1!");
         }
-        catch (TransponderException e)
-        {
-          Console.WriteLine($"Error writing to block 1: {e.Message}");
-          Console.WriteLine("Possible causes:");
-          Console.WriteLine("- Block is write-protected or read-only");
-          Console.WriteLine("- Tag moved out of range during write");
-          Console.WriteLine("- Insufficient power for write operation");
-          Console.WriteLine("- Tag doesn't support writes to this block");
-          Console.WriteLine("- Authentication required");
-        }
         catch (MetratecReaderException ex)
         {
-          Console.WriteLine($"Reader error during write: {ex.Message}");
+          Console.WriteLine($"Write operation failed: {ex.Message}");
+          Console.WriteLine("Possible causes:");
+          Console.WriteLine("- Block is write-protected");
+          Console.WriteLine("- Tag moved out of range during write");
+          Console.WriteLine("- Insufficient power for write operation");
+          Console.WriteLine("- Tag memory is full or corrupted");
+
         }
 
-        // Verify written data by reading it back
+        // Read back the written data for verification
         Console.WriteLine("\nVerifying written data - reading block 1...");
         try
         {
@@ -225,7 +241,7 @@ namespace ReaderExamples
             Console.WriteLine("Data mismatch - write may have been partial or failed");
           }
         }
-        catch (Exception ex)
+        catch (MetratecReaderException ex)
         {
           Console.WriteLine($"Verification read failed: {ex.Message}");
         }
@@ -251,6 +267,7 @@ namespace ReaderExamples
         {
           Console.WriteLine($"Multi-block read failed: {ex.Message}");
         }
+
       }
       catch (MetratecReaderException ex)
       {

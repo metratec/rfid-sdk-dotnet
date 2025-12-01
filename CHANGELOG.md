@@ -1,5 +1,15 @@
 # Changelog
 
+## 3.4
+
+* use .Net 8
+* antenna parsing for multiple inventory corrected
+* AT UHF Reader - GetInventory method splittet into GetSingleInventory and GetMultipleInventory
+* Event timestamps corrected
+* Parsing bugs adjusted
+* Error messages updated
+* Examples updated
+
 ## 3.4 Beta 2
 
 * UHF inventory settings updated (Phase, Select, Target, RssiThreshold added)

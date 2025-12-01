@@ -44,7 +44,7 @@ namespace MetraTecDevices
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public MetratecReaderAT(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
+    public MetratecReaderAT(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id)
     {
       connection.NewlineString = "\r\n";
     }
@@ -220,7 +220,16 @@ namespace MetraTecDevices
     /// </exception>
     public int GetAntenna()
     {
-      CurrentAntennaPort = int.Parse(GetCommand("AT+ANT?").Substring(6, 1));
+      string response = GetCommand("AT+ANT?");
+      if (response.Length < 7)
+      {
+        throw new MetratecReaderException("Invalid antenna response format");
+      }
+      if (!int.TryParse(response.Substring(6, 1), out var antennaPort))
+      {
+        throw new MetratecReaderException($"Invalid antenna port value: {response.Substring(6, 1)}");
+      }
+      CurrentAntennaPort = antennaPort;
       return CurrentAntennaPort;
     }
     /// <summary>
@@ -261,7 +270,10 @@ namespace MetraTecDevices
       if (split.Length == 1)
       {
         // throw new MetratecReaderException("No multiplex sequence activated, please use 'GetAntennaMultiplex' command");
-        int antennas = int.Parse(split[0]);
+        if (!int.TryParse(split[0], out var antennas))
+        {
+          throw new MetratecReaderException($"Invalid antenna count: {split[0]}");
+        }
         for (int i = 1; i <= antennas; i++)
         {
           sequence.Add(i);
@@ -271,7 +283,14 @@ namespace MetraTecDevices
       {
         foreach (String value in split)
         {
-          sequence.Add(int.Parse(value));
+          if (int.TryParse(value, out var intValue))
+          {
+            sequence.Add(intValue);
+          }
+          else
+          {
+            throw new MetratecReaderException($"Invalid antenna sequence value: {value}");
+          }
         }
       }
       return sequence;
@@ -294,6 +313,7 @@ namespace MetraTecDevices
         {
           throw;
         }
+        Logger.LogDebug("Stop inventory command ignored - inventory was not running: {}", e.Message);
       }
     }
     /// <inheritdoc/>
@@ -342,7 +362,7 @@ namespace MetraTecDevices
     {
       if (null == InputChanged)
         return;
-      InputChangedEventArgs args = new(inputPin, isHigh, new DateTime());
+      InputChangedEventArgs args = new(inputPin, isHigh, DateTime.Now);
       ThreadPool.QueueUserWorkItem(o => InputChanged.Invoke(this, args));
     }
     /// <summary>
@@ -378,7 +398,14 @@ namespace MetraTecDevices
                 // +IEV: 1,HIGH
                 // +IEV: 2,LOW
                 string[] split = SplitLine(response[6..]);
-                FireInputChangeEvent(int.Parse(split[0]), split[1].ToUpper().Equals("HIGH"));
+                if (int.TryParse(split[0], out var inputPin))
+                {
+                  FireInputChangeEvent(inputPin, split[1].ToUpper().Equals("HIGH"));
+                }
+                else
+                {
+                  Logger.LogWarning("Invalid input pin value: {}", split[0]);
+                }
                 return;
               }
               break;
@@ -449,8 +476,16 @@ namespace MetraTecDevices
       FirmwareVersion = Firmware[^1];
       // FirmwareName = responses[0][5..^5];
       // FirmwareVersion = responses[0][^4..];
-      FirmwareMajorVersion = int.Parse(FirmwareVersion[..2]);
-      FirmwareMinorVersion = int.Parse(FirmwareVersion[2..]);
+      if (FirmwareVersion.Length < 4)
+      {
+        throw new MetratecReaderException($"Invalid firmware version format: {FirmwareVersion}");
+      }
+      if (!int.TryParse(FirmwareVersion[..2], out var majorVersion) || !int.TryParse(FirmwareVersion[2..], out var minorVersion))
+      {
+        throw new MetratecReaderException($"Invalid firmware version values: {FirmwareVersion}");
+      }
+      FirmwareMajorVersion = majorVersion;
+      FirmwareMinorVersion = minorVersion;
       if (responses[1].Length > 6)
       {
         string[] Hardware = responses[1].Split(" ");

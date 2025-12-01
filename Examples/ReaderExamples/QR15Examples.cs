@@ -5,85 +5,65 @@ using MetraTecDevices;
 namespace ReaderExamples
 {
   /// <summary>
-  /// Examples demonstrating QuasarMX reader operations for High Frequency (HF) RFID tags.
-  /// This network-connected reader supports ISO15693 tags and provides Ethernet connectivity for remote operations.
-  /// Uses ASCII protocol over Ethernet communication with advanced HF capabilities.
+  /// Examples demonstrating QR15 reader operations for High Frequency (HF) RFID tags.
+  /// This HF RFID module with integrated antenna is designed for easy integration into electronics.
+  /// Supports both serial and Ethernet connectivity with ISO15693 tag operations using ASCII protocol.
   /// </summary>
-  internal class QuasarMxExamples
+  internal class QR15Examples
   {
     /// <summary>
-    /// Demonstrates basic HF inventory operations using network connectivity.
-    /// Shows how to detect ISO15693 compatible tags over Ethernet connection with proper error handling.
+    /// Demonstrates basic HF inventory operations using the QR15 module with integrated antenna.
+    /// Shows how to detect ISO15693 tags with both serial and network connectivity options.
     /// </summary>
     public static void InventoryExample()
     {
-      // Create the reader instance using Ethernet communication
-      // Note: Update IP address and port to match your QuasarMX network configuration
-      QuasarMX reader = new QuasarMX("192.168.2.201", 10001);
+      // Create the QR15 reader instance - supports both Serial and Ethernet connectivity
+      // Option 1: Serial connection (USB/RS232)
+      // Note: Update "/dev/ttyUSB0" to match your actual device path (Linux/Mac) or "COM#" for Windows
+      String port = "/dev/ttyUSB0";
+      QR15 reader = new QR15(port);
+      
+      // Option 2: Ethernet connection (for network-enabled variants)
+      // QR15 reader = new QR15("192.168.1.100", 10001);
 
       // Subscribe to reader connection status changes (Connected/Disconnected)
-      reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp}Reader status changed to {e.Message} ({e.Status})");
+      reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} Reader status changed to {e.Message} ({e.Status})");
       
       // Subscribe to inventory events - triggered when tags are detected during continuous scanning
       reader.NewInventory += (s, e) =>
       {
-        Console.WriteLine($"{e.Timestamp}New inventory event! {e.Tags.Count} HF Tag(s) found");
+        Console.WriteLine($"{e.Timestamp} New inventory event! {e.Tags.Count} HF Tag(s) found");
         foreach (HfTag tag in e.Tags)
         {
           Console.WriteLine($"  TID: {tag.TID}");
         }
       };
       
-      // Subscribe to GPIO input changes (if supported by QuasarMX)
-      reader.InputChanged += (s, e) => Console.WriteLine($"Input Changed: {e.Pin} {e.IsHigh}");
-
-      // Establish network connection to the reader with 2-second timeout
+      // Establish connection to the reader with 2-second timeout
       try
       {
-        Console.WriteLine("Connecting to QuasarMX...");
+        Console.WriteLine("Connecting to QR15 HF RFID module...");
         reader.Connect(2000);
         Console.WriteLine("Connection established!");
+        Console.WriteLine($"Reader Firmware: {reader.FirmwareVersion}");
+        Console.WriteLine($"Protocol: ASCII (Integrated Antenna Module)");
       }
       catch (MetratecReaderException e)
       {
         Console.WriteLine($"Cannot connect to reader ({e.Message}). Program exits");
         Console.WriteLine("\nTroubleshooting:");
-        Console.WriteLine("- Check network cable connection");
-        Console.WriteLine("- Verify QuasarMX IP address configuration");
-        Console.WriteLine("- Ensure reader is powered on");
-        Console.WriteLine("- Check firewall settings on port 10001");
-        Console.WriteLine("- Verify network connectivity (ping test)");
+        Console.WriteLine("- For Serial: Check USB cable connection and COM port");
+        Console.WriteLine("- For Ethernet: Check network cable and IP configuration");
+        Console.WriteLine("- Verify QR15 module is properly powered");
+        Console.WriteLine("- Check if another application is using the device");
+        Console.WriteLine("- Ensure integrated antenna is not obstructed");
+        Console.WriteLine("- Verify this is QR15 (HF) module, not QR-series UHF");
         return;
       }
       
       try
       {
-        // Configure RF interface for optimal ISO15693 operation
-        try
-        {
-          reader.EnableRfInterface(SubCarrier.SINGLE, ModulationDepth.Depth100);
-          Console.WriteLine("RF interface configured for ISO15693 operation");
-        }
-        catch (MetratecReaderException ex)
-        {
-          Console.WriteLine($"RF configuration failed: {ex.Message}");
-          Console.WriteLine("Continuing with default RF settings...");
-        }
-
-        // Set power if supported (firmware version >= 3.0)
-        try
-        {
-          reader.SetPower(100);
-          Console.WriteLine("Reader power set to 10");
-        }
-        catch (MetratecReaderException ex)
-        {
-          Console.WriteLine($"Power setting not supported: {ex.Message}");
-          Console.WriteLine("Continuing with default power settings...");
-        }
-        
         // Perform a single inventory scan to detect currently present tags
-        // This also triggers the NewInventory event if listeners are registered
         Console.WriteLine("\nPerforming single inventory scan...");
         List<HfTag> tags = reader.GetInventory();
         Console.WriteLine($"Current inventory: {tags.Count} HF Tag(s) found");
@@ -91,7 +71,6 @@ namespace ReaderExamples
         foreach (HfTag tag in tags)
         {
           Console.WriteLine($"TID: {tag.TID}");
-          Console.WriteLine();
         }
 
         // Start continuous inventory scanning in the background
@@ -108,15 +87,16 @@ namespace ReaderExamples
       {
         Console.WriteLine($"Error during operation: {ex.Message}");
         Console.WriteLine("\nPossible causes:");
-        Console.WriteLine("- No HF/ISO15693 tags in range");
-        Console.WriteLine("- RF interference in 13.56 MHz band");
-        Console.WriteLine("- Tag orientation or distance issues");
-        Console.WriteLine("- Reader antenna configuration problems");
-        Console.WriteLine("- Network communication timeout");
+        Console.WriteLine("- No HF/ISO15693 tags in range (place tag closer to module)");
+        Console.WriteLine("- Tag orientation issues (try different angles)");
+        Console.WriteLine("- RF interference in HF band (13.56 MHz)");
+        Console.WriteLine("- Integrated antenna coupling problems");
+        Console.WriteLine("- Module positioning issues");
+        Console.WriteLine("- ASCII protocol communication errors");
       }
       finally
       {
-        // Always disconnect to free network resources
+        // Always disconnect to free resources
         if (reader.Connected)
         {
           reader.Disconnect();
@@ -126,44 +106,42 @@ namespace ReaderExamples
     }
 
     /// <summary>
-    /// Demonstrates reading and writing data to HF tag memory blocks using network-based reader.
-    /// Shows how to access ISO15693 tag memory for data storage and retrieval with comprehensive error handling.
+    /// Demonstrates reading and writing user data to HF tag memory using the QR15 module.
+    /// Shows how to access ISO15693 tag memory blocks with integrated antenna optimization.
     /// </summary>
     public static void ReadWriteExample()
     {
-      // Create the reader instance using Ethernet communication
-      // Note: Update IP address and port to match your QuasarMX network configuration
-      QuasarMX reader = new QuasarMX("192.168.2.201", 10001);
+      // Create the QR15 reader instance
+      // Note: Update "/dev/ttyUSB0" to match your actual device path (Linux/Mac) or "COM#" for Windows
+      String port = "/dev/ttyUSB0";
+      QR15 reader = new QR15(port);
       
       // Subscribe to reader connection status changes
       reader.StatusChanged += (s, e) => Console.WriteLine($"{e.Timestamp} Reader status changed to {e.Message} ({e.Status})");
       
-      // Establish network connection with 2-second timeout
+      // Establish connection to the reader with 2-second timeout
       try
       {
-        Console.WriteLine("Connecting to QuasarMX for read/write operations...");
+        Console.WriteLine("Connecting to QR15 module for read/write operations...");
         reader.Connect(2000);
         Console.WriteLine("Connection established!");
+        Console.WriteLine($"Using ASCII protocol with firmware: {reader.FirmwareVersion}");
       }
       catch (MetratecReaderException e)
       {
         Console.WriteLine($"Cannot connect to reader ({e.Message}). Program exits");
         Console.WriteLine("\nTroubleshooting:");
-        Console.WriteLine("- Check network cable connection");
-        Console.WriteLine("- Verify reader IP address configuration");
-        Console.WriteLine("- Ensure reader is powered on");
-        Console.WriteLine("- Check firewall settings");
+        Console.WriteLine("- Check connection (Serial: COM port, Ethernet: IP address)");
+        Console.WriteLine("- Verify QR15 module is properly powered");
+        Console.WriteLine("- Ensure integrated antenna is functioning");
+        Console.WriteLine("- Check for communication conflicts");
         return;
       }
       
       try
       {
-        // Configure RF interface for optimal performance
-        reader.EnableRfInterface(SubCarrier.SINGLE, ModulationDepth.Depth100);
-        Console.WriteLine("RF interface configured for ISO15693 operation");
-
-        // Wait for an HF tag to be placed within reader range
-        Console.WriteLine("Please place an ISO15693 tag near the QuasarMX reader...");
+        // Wait for an HF tag to be placed near the integrated antenna
+        Console.WriteLine("Please place an HF/ISO15693 tag near the QR15 integrated antenna...");
         List<HfTag> tags;
         int attempts = 0;
         do
@@ -175,8 +153,9 @@ namespace ReaderExamples
             if (attempts % 5 == 0)
             {
               Console.WriteLine($"No tags found after {attempts} attempts. Continuing to search...");
-              Console.WriteLine("Make sure you have an ISO15693 compatible tag");
-              Console.WriteLine("Try placing the tag closer to the reader antenna");
+              Console.WriteLine("Make sure you have an HF/ISO15693 compatible tag");
+              Console.WriteLine("Try placing the tag directly over the integrated antenna");
+              Console.WriteLine("QR15 integrated antenna provides consistent read zone");
             }
             System.Threading.Thread.Sleep(1000);
           }
@@ -190,11 +169,11 @@ namespace ReaderExamples
         
         // Use the first detected tag for read/write operations
         HfTag tag = tags[0];
-        Console.WriteLine($"HF tag found:");
-        Console.WriteLine($"  TID: {tag.TID}");
-
-        // Attempt to read data from memory block 0 (usually contains tag info)
-        Console.WriteLine("\nReading data from memory block 0...");
+        Console.WriteLine($"HF tag found: {tag.TID}");
+        
+        // Attempt to read data from block 4 (user memory area)
+        // ISO15693 tags typically have user memory starting from block 4
+        Console.WriteLine("\nReading user data from block 4...");
         try
         {
           // Read 4 bytes from block 0 using the tag's UID/TID
@@ -212,9 +191,10 @@ namespace ReaderExamples
         }
         catch (MetratecReaderException ex)
         {
-          Console.WriteLine($"Reader error during read: {ex.Message}");
+          Console.WriteLine($"Read operation failed: {ex.Message}");
+          Console.WriteLine("Note: Some ISO15693 tags may have different memory layouts");
         }
-
+        
         // Attempt to write new data to memory block 1 (avoiding block 0 which may contain system data)
         string dataToWrite = "01020304"; // 4 bytes as hex string
         Console.WriteLine($"\nWriting data '{dataToWrite}' to memory block 1...");
@@ -296,5 +276,6 @@ namespace ReaderExamples
         }
       }
     }
+
   }
 }

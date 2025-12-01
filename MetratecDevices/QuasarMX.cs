@@ -11,7 +11,7 @@ namespace MetraTecDevices
   /// without needing to address them individually. This allows applications directly at conveyor belts,
   /// in production machinery, and in electric control cabinets.
   /// </summary>
-  public class QuasarMX : HfReaderAscii
+  public class QuasarMX : MetratecReaderAsciiHf
   {
     #region Constructor
     /// <summary>Creates a new QuasarMX instance</summary>
@@ -19,19 +19,19 @@ namespace MetraTecDevices
     /// <param name="tcpPort">The device TCP port used</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public QuasarMX(string ipAddress, int tcpPort, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
+    public QuasarMX(string ipAddress, int tcpPort, ILogger? logger = null, string? id = null) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
 
     /// <summary>Creates a new QuasarMX instance</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public QuasarMX(string portName, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), logger, id) { }
+    public QuasarMX(string portName, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), logger, id) { }
 
     /// <summary>Creates a new QuasarMX instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public QuasarMX(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public QuasarMX(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion
 

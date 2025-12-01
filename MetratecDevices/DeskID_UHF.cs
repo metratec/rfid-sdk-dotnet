@@ -9,7 +9,7 @@ namespace MetraTecDevices
   /// Its main use is to read and write data to EPC Gen 2 transponders directly from your PC or laptop. Thus, the device is a handy
   /// tool for all UHF applications for testing tags, writing an EPC, or just debugging your UHF gate.
   /// </summary>
-  public class DeskID_UHF : UhfReaderAscii
+  public class DeskID_UHF : MetratecReaderAsciiUhf
   {
     #region Constructor
     /// <summary>The constructor of the DeskID_UHF object</summary>
@@ -17,13 +17,13 @@ namespace MetraTecDevices
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_UHF(string portName, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), mode, logger, id) { }
+    public DeskID_UHF(string portName, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), mode, logger, id) { }
     /// <summary>The constructor of the DeskID_UHF object</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_UHF(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(connection, mode, logger, id) { }
+    public DeskID_UHF(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(connection, mode, logger, id) { }
 
     #endregion
 
@@ -75,14 +75,14 @@ namespace MetraTecDevices
   /// Its main use is to read and write data to EPC Gen 2 transponders directly from your PC or laptop. Thus, the device is a handy
   /// tool for all UHF applications for testing tags, writing an EPC, or just debugging your UHF gate.
   /// </summary>
-  public class DeskID_UHF_v2 : UhfReaderAT
+  public class DeskID_UHF_v2 : MetratecReaderATUhf
   {
     #region Constructor
     /// <summary>The constructor of the DeskID_UHF_v2 object</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_UHF_v2(string portName, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), logger, id)
+    public DeskID_UHF_v2(string portName, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), logger, id)
     {
       CurrentAntennaPort = 1;
       SingleAntennaInUse = true;
@@ -92,7 +92,7 @@ namespace MetraTecDevices
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DeskID_UHF_v2(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
+    public DeskID_UHF_v2(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id)
     {
       CurrentAntennaPort = 1;
       SingleAntennaInUse = true;

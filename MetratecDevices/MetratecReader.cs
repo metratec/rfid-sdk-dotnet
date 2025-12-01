@@ -11,7 +11,7 @@ namespace MetraTecDevices
   /// <summary>
   /// The base reader class for all Metratec reader
   /// </summary>
-  public abstract class MetratecReader<T> where T : RfidTag
+  public abstract class MetratecReader<T> : IDisposable where T : RfidTag
   {
     #region Properties
 
@@ -82,7 +82,9 @@ namespace MetraTecDevices
     private readonly ConcurrentQueue<string> _commands = new();
     private int _connectionReceiveTimeout = 10000;
     private DateTime _lastResponseTime = DateTime.Now;
-    private readonly Dictionary<string, T> _inventory = new();
+    private readonly ConcurrentDictionary<string, T> _inventory = new();
+    private bool _disposed = false;
+    private readonly object _statusLock = new();
 
     #endregion Properties
 
@@ -108,31 +110,109 @@ namespace MetraTecDevices
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public MetratecReader(ICommunicationInterface connection, ILogger logger = null!, string id = null!)
+    public MetratecReader(ICommunicationInterface connection, ILogger? logger = null, string? id = null)
     {
       if (connection is null)
       {
-        throw new NullReferenceException("Connection must be not null");
+        throw new ArgumentNullException(nameof(connection), "Connection must not be null");
       }
       ResponseTimeout = 2500;
       FireEmptyInventories = false;
       _connection = connection;
       this.id = id ?? _connection.ToString() ?? "";
       Logger = logger ?? NullLogger.Instance;
-      _t_worker = new Thread(new ThreadStart(Work));
+      _t_worker = new Thread(new ThreadStart(Work))
+      {
+        Name = $"MetratecReader_Worker_{this.id}",
+        IsBackground = true
+      };
     }
     /// <summary>
-    /// Finalize-Methode
+    /// Finalizer
     /// </summary>
     ~MetratecReader()
     {
-      if (Connected)
-      {
-        Disconnect();
-      }
+      Dispose(false);
     }
 
     #endregion Constructor
+
+    #region IDisposable Implementation
+
+    /// <summary>
+    /// Releases all resources used by the MetratecReader
+    /// </summary>
+    public void Dispose()
+    {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases the unmanaged resources used by the MetratecReader and optionally releases the managed resources
+    /// </summary>
+    /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources</param>
+    protected virtual void Dispose(bool disposing)
+    {
+      if (_disposed)
+        return;
+
+      if (disposing)
+      {
+        // Dispose managed resources
+        try
+        {
+          if (_running)
+          {
+            _running = false;
+            
+            // Give worker thread time to exit gracefully
+            if (_t_worker?.IsAlive == true)
+            {
+              if (!_t_worker.Join(TimeSpan.FromSeconds(2)))
+              {
+                Logger.LogWarning("Worker thread did not terminate within timeout");
+              }
+            }
+            
+            // Give configure thread time to exit gracefully
+            if (_t_configure?.IsAlive == true)
+            {
+              if (!_t_configure.Join(TimeSpan.FromSeconds(1)))
+              {
+                Logger.LogWarning("Configure thread did not terminate within timeout");
+              }
+            }
+          }
+
+          // Disconnect and dispose connection
+          _connection?.Disconnect();
+          if (_connection is IDisposable disposableConnection)
+          {
+            disposableConnection.Dispose();
+          }
+
+          // Clear event handlers to prevent memory leaks
+          StatusChanged = null;
+          NewInventory = null;
+
+          // Clear collections
+          _inventory?.Clear();
+          
+          // Clear queues
+          while (_commands?.TryDequeue(out _) == true) { }
+          while (_responses?.TryDequeue(out _) == true) { }
+        }
+        catch (Exception ex)
+        {
+          Logger.LogError(ex, "Error during disposal");
+        }
+      }
+
+      _disposed = true;
+    }
+
+    #endregion IDisposable Implementation
 
     #region Public Methods
 
@@ -141,13 +221,25 @@ namespace MetraTecDevices
     /// </summary>
     public void Connect()
     {
+      if (_disposed)
+        throw new ObjectDisposedException(GetType().Name);
+        
       if (_running)
       {
         return;
       }
       OnStatusChanged(0, "Connecting...", DateTime.Now);
       _running = true;
-      _t_worker = new Thread(new ThreadStart(Work));
+      
+      // Create new worker thread if the previous one has terminated
+      if (_t_worker?.IsAlive != true)
+      {
+        _t_worker = new Thread(new ThreadStart(Work))
+        {
+          Name = $"MetratecReader_Worker_{id}",
+          IsBackground = true
+        };
+      }
       _t_worker.Start();
     }
     /// <summary>
@@ -184,9 +276,9 @@ namespace MetraTecDevices
         {
           StopInventory();
         }
-        catch (MetratecReaderException)
+        catch (MetratecReaderException ex)
         {
-          // ignore
+          Logger.LogDebug("Failed to stop inventory during disconnect: {}", ex.Message);
         }
       }
       Disconnect("Disconnected");
@@ -199,9 +291,12 @@ namespace MetraTecDevices
     {
       // this._connectionHandler.Disconnect();
       _running = false;
-      while (_t_worker.IsAlive)
+      if (_t_worker?.IsAlive == true)
       {
-        Thread.Sleep(20);
+        if (!_t_worker.Join(TimeSpan.FromSeconds(2)))
+        {
+          Logger.LogWarning("Worker thread did not terminate within timeout during disconnect");
+        }
       }
       _connection.Disconnect();
       OnStatusChanged(-1, statusMessage, DateTime.Now);
@@ -293,9 +388,12 @@ namespace MetraTecDevices
     {
       Thread.Sleep(50);
       _running = false;
-      while (_t_worker.IsAlive)
+      if (_t_worker?.IsAlive == true)
       {
-        Thread.Sleep(20);
+        if (!_t_worker.Join(TimeSpan.FromSeconds(2)))
+        {
+          Logger.LogWarning("Worker thread did not terminate within timeout during reset");
+        }
       }
       _connection.Disconnect();
       OnStatusChanged(-1, "Resetting...", DateTime.Now);
@@ -479,7 +577,7 @@ namespace MetraTecDevices
       }
       if (!FireEmptyInventories && tags.Count == 0)
         return;
-      NewInventoryEventArgs<T> args = new(tags, new DateTime());
+      NewInventoryEventArgs<T> args = new(tags, DateTime.Now);
       ThreadPool.QueueUserWorkItem(o => NewInventory.Invoke(this, args));
     }
 
@@ -514,7 +612,11 @@ namespace MetraTecDevices
             _lastResponseTime = DateTime.Now;
             if (_status != 0)
               OnStatusChanged(0, "Connecting...", DateTime.Now);
-            _t_configure = new Thread(new ThreadStart(PrepareReaderRunner));
+            _t_configure = new Thread(new ThreadStart(PrepareReaderRunner))
+            {
+              Name = $"MetratecReader_Configure_{id}",
+              IsBackground = true
+            };
             _t_configure.Start();
           }
           catch (MetratecCommunicationException e)
@@ -609,14 +711,17 @@ namespace MetraTecDevices
     }
     private void OnStatusChanged(int status, string message, DateTime timestamp, MetratecCommunicationException? exception = null)
     {
-      _status = status;
-      _status_message = message;
-      _status_exception = exception;
+      lock (_statusLock)
+      {
+        _status = status;
+        _status_message = message;
+        _status_exception = exception;
+      }
       Logger.LogDebug("{} Status changed to {} ({})", id, message, status);
       if (null == StatusChanged)
         return;
       StatusEventArgs args = new(status, message, timestamp);
-      ThreadPool.QueueUserWorkItem(o => StatusChanged.Invoke(this, args));
+      ThreadPool.QueueUserWorkItem(o => StatusChanged?.Invoke(this, args));
     }
     #endregion Private Methods
   }

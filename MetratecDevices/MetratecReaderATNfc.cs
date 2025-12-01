@@ -8,7 +8,7 @@ namespace MetraTecDevices
   /// <summary>
   /// The reader class for the metratec nfc readers based on the AT protocol
   /// </summary>
-  public class NfcReader : MetratecReaderAT<HfTag>
+  public class MetratecReaderATNfc : MetratecReaderAT<HfTag>
   {
     #region Properties
 
@@ -21,12 +21,12 @@ namespace MetraTecDevices
     #region Constructor
 
     /// <summary>
-    /// Create a new instance of the NfcReader class.
+    /// Create a new instance of the MetratecReaderATNfc class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public NfcReader(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
+    public MetratecReaderATNfc(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id)
     {
     }
 
@@ -133,7 +133,15 @@ namespace MetraTecDevices
     {
       string response = GetCommand("AT+MOD?");
       // +MOD= ISO14A
-      NfcReaderMode mode = Enum.Parse<NfcReaderMode>(response[6..]);
+      if (response.Length < 7)
+      {
+        throw new MetratecReaderException("Invalid mode response format");
+      }
+      string modeStr = response[6..];
+      if (!Enum.TryParse<NfcReaderMode>(modeStr, out var mode))
+      {
+        throw new MetratecReaderException($"Invalid mode value: {modeStr}");
+      }
       _mode = mode;
       return mode;
     }
@@ -160,7 +168,15 @@ namespace MetraTecDevices
     {
       //+CRI: SINGLE,100
       string[] response = SplitLine(GetCommand("AT+CRI?")[6..]);
-      return (SubCarrier)Enum.Parse(typeof(SubCarrier), response[0]);
+      if (response.Length == 0)
+      {
+        throw new MetratecReaderException("Empty subcarrier response");
+      }
+      if (!Enum.TryParse<SubCarrier>(response[0], out var subCarrier))
+      {
+        throw new MetratecReaderException($"Invalid subcarrier value: {response[0]}");
+      }
+      return subCarrier;
     }
     /// <summary>
     /// Get the current rf interface modulation depth
@@ -275,7 +291,14 @@ namespace MetraTecDevices
             case 'R': //Round finished
               if (split[0].Length > 16)
               {
-                antenna = int.Parse(split[1].Substring(5, 1));
+                if (split[1].Length < 6)
+                {
+                  throw new MetratecReaderException($"Invalid antenna format in response: {split[1]}");
+                }
+                if (!int.TryParse(split[1].Substring(5, 1), out antenna))
+                {
+                  throw new MetratecReaderException($"Invalid antenna value: {split[1].Substring(5, 1)}");
+                }
                 foreach (HfTag tag in tags)
                 {
                   tag.Antenna = antenna;
@@ -360,7 +383,7 @@ namespace MetraTecDevices
         {
           if (null == _inventorySettings)
           {
-            // not initialised - ignore
+            Logger.LogDebug("Inventory parsing skipped - settings not initialized: {}", e.Message);
             return tags;
           }
           Logger.LogWarning("Inventory warning ({}) - {}", info, e.Message);
@@ -561,7 +584,16 @@ namespace MetraTecDevices
     /// </exception>
     public int GetAfi()
     {
-      return int.Parse(GetCommand($"AT+AFI?")[6..], System.Globalization.NumberStyles.HexNumber);
+      string response = GetCommand($"AT+AFI?");
+      if (response.Length < 7)
+      {
+        throw new MetratecReaderException("Invalid AFI response format");
+      }
+      if (!int.TryParse(response[6..], System.Globalization.NumberStyles.HexNumber, null, out var afi))
+      {
+        throw new MetratecReaderException($"Invalid AFI value: {response[6..]}");
+      }
+      return afi;
     }
     /// <summary>
     /// Write the "Application Family Identifier" to an ISO15693 transponder.
@@ -770,7 +802,21 @@ namespace MetraTecDevices
     public int ReadMifareClassicValueBlock(int block)
     {
       // +RVL: 32,5
-      return int.Parse(SplitLine(GetCommand($"AT+RVL={block}")[6..])[0]);
+      string response = GetCommand($"AT+RVL={block}");
+      if (response.Length < 7)
+      {
+        throw new MetratecReaderException("Invalid RVL response format");
+      }
+      string[] split = SplitLine(response[6..]);
+      if (split.Length == 0)
+      {
+        throw new MetratecReaderException("No RVL values found");
+      }
+      if (!int.TryParse(split[0], out var value))
+      {
+        throw new MetratecReaderException($"Invalid RVL value: {split[0]}");
+      }
+      return value;
     }
 
     /// <summary>
@@ -788,7 +834,21 @@ namespace MetraTecDevices
     public int ReadMifareClassicValueBlockBackupAddress(int block)
     {
       // +RVL: 32,5
-      return int.Parse(SplitLine(GetCommand($"AT+RVL={block}")[6..])[1]);
+      string response = GetCommand($"AT+RVL={block}");
+      if (response.Length < 7)
+      {
+        throw new MetratecReaderException("Invalid RVL response format");
+      }
+      string[] split = SplitLine(response[6..]);
+      if (split.Length < 2)
+      {
+        throw new MetratecReaderException("Insufficient RVL values found");
+      }
+      if (!int.TryParse(split[1], out var backupAddress))
+      {
+        throw new MetratecReaderException($"Invalid RVL backup address: {split[1]}");
+      }
+      return backupAddress;
     }
     /// <summary>
     /// Add a value of a Mifare Classic block.
@@ -953,7 +1013,15 @@ namespace MetraTecDevices
     {
       // +NACFG: 4,1,0
       string[] response = SplitLine(GetCommand("AT+NACFG?")[8..]);
-      return new NTAGAccessConfig(int.Parse(response[0]), response[1] != "0", int.Parse(response[2]));
+      if (response.Length < 3)
+      {
+        throw new MetratecReaderException("Insufficient NTAG access config values");
+      }
+      if (!int.TryParse(response[0], out var startAddress) || !int.TryParse(response[2], out var maxAttempts))
+      {
+        throw new MetratecReaderException($"Invalid NTAG access config values: {response[0]}, {response[2]}");
+      }
+      return new NTAGAccessConfig(startAddress, response[1] != "0", maxAttempts);
     }
     /// <summary>
     /// Configure the NTAG mirror configuration.
@@ -985,8 +1053,19 @@ namespace MetraTecDevices
     {
       // +NMCFG: BOTH,4,0
       string[] response = SplitLine(GetCommand("AT+NMCFG?")[8..]);
-      return new NTAGMirrorConfig((NTAGMirrorConfig.MirrorMode)Enum.Parse(typeof(NTAGMirrorConfig.MirrorMode),
-                                  response[0]), int.Parse(response[1]), int.Parse(response[2]));
+      if (response.Length < 3)
+      {
+        throw new MetratecReaderException("Insufficient NTAG mirror config values");
+      }
+      if (!Enum.TryParse<NTAGMirrorConfig.MirrorMode>(response[0], out var mirrorMode))
+      {
+        throw new MetratecReaderException($"Invalid mirror mode: {response[0]}");
+      }
+      if (!int.TryParse(response[1], out var page) || !int.TryParse(response[2], out var offset))
+      {
+        throw new MetratecReaderException($"Invalid NTAG mirror config values: {response[1]}, {response[2]}");
+      }
+      return new NTAGMirrorConfig(mirrorMode, page, offset);
     }
     /// <summary>
     /// Configure the NTAG counter configuration.
@@ -1091,7 +1170,16 @@ namespace MetraTecDevices
     /// </exception>
     public int ReadNTAGCounter()
     {
-      return int.Parse(GetCommand("AT+NCNT?")[7..]);
+      string response = GetCommand("AT+NCNT?");
+      if (response.Length < 8)
+      {
+        throw new MetratecReaderException("Invalid NCNT response format");
+      }
+      if (!int.TryParse(response[7..], out var counter))
+      {
+        throw new MetratecReaderException($"Invalid NCNT value: {response[7..]}");
+      }
+      return counter;
     }
     /// <summary>
     /// Lock a NTAG page. The lock is irreversible.
@@ -1440,5 +1528,23 @@ namespace MetraTecDevices
 
   #endregion Configuration Classes/Enums
 
+  #region Backward Compatibility Aliases
+
+  /// <summary>
+  /// Backward compatibility alias for MetratecReaderATNfc
+  /// </summary>
+  [Obsolete("Use MetratecReaderATNfc instead", false)]
+  public class NfcReader : MetratecReaderATNfc
+  {
+    /// <summary>
+    /// Create a new instance of the NfcReader class.
+    /// </summary>
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public NfcReader(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
+  }
+
+  #endregion Backward Compatibility Aliases
 
 }

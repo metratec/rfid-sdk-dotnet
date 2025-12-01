@@ -7,7 +7,7 @@ namespace MetraTecDevices
   /// The QuasarLR is an HF long-range RFID reader/writer for demanding industrial applications,
   /// where high reading reliability, high read ranges, and extensive special tag features are needed.
   /// </summary>
-  public class QuasarLR : HfReaderAscii
+  public class QuasarLR : MetratecReaderAsciiHf
   {
     #region Internal Variables
     internal int _minPower = 500;
@@ -20,19 +20,19 @@ namespace MetraTecDevices
     /// <param name="tcpPort">The device TCP port used</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public QuasarLR(string ipAddress, int tcpPort, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
+    public QuasarLR(string ipAddress, int tcpPort, ILogger? logger = null, string? id = null) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
 
     /// <summary>Creates a new QuasarLR instance</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public QuasarLR(string portName, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), logger, id) { }
+    public QuasarLR(string portName, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), logger, id) { }
 
     /// <summary>Creates a new QuasarLR instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public QuasarLR(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public QuasarLR(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
     #endregion
 
     #region Public Methods

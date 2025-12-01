@@ -10,7 +10,7 @@ namespace MetraTecDevices
   /// <summary>
   /// The reader class for the metratec hf readers based on the Ascii protocol
   /// </summary>
-  public class HfReaderAscii : MetratecReaderAscii<HfTag>
+  public class MetratecReaderAsciiHf : MetratecReaderAscii<HfTag>
   {
 
     #region Properties
@@ -37,12 +37,12 @@ namespace MetraTecDevices
     #region Constructor
 
     /// <summary>
-    /// Create a new instance of the HfReaderAscii class.
+    /// Create a new instance of the MetratecReaderAsciiHf class.
     /// </summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public HfReaderAscii(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id)
+    public MetratecReaderAsciiHf(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id)
     {
     }
 
@@ -51,30 +51,33 @@ namespace MetraTecDevices
     #region Public Methods
 
     #region Reader Settings
+
     /// <inheritdoc/>
-    public override void EnableCrcCheck(bool enable = true)
+    protected override void PrepareReader()
     {
-      base.EnableCrcCheck(enable);
-      // update input event setting
-      EnableInputEvents();
+      base.PrepareReader();
     }
     /// <summary>
     /// Set the reader power
     /// </summary>
-    /// <param name="power">the reader power</param>
+    /// <param name="power">the reader power in mW - 100(mW) or 200(mW)</param>
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
     public override void SetPower(int power)
-    {
-      if (FirmwareMajorVersion >= 3)
+    { try
       {
         SetCommand($"SET PWR {power}");
       }
-      else
+      catch (MetratecReaderException ex)
       {
-        throw new MetratecReaderException($"Firmware Version {FirmwareVersion} does not support power settings");
+        if (ex.Message.Contains("UCO"))
+        {
+          throw new MetratecReaderException($"Firmware Version {FirmwareVersion} does not support power settings");
+        }
+        throw;
       }
+
     }
     /// <summary>
     /// Enable the rf interface 
@@ -248,27 +251,56 @@ namespace MetraTecDevices
       {
         throw new TransponderException(tag.Message);
       }
-      byte infoFlag = byte.Parse(tag.Data![0..2], System.Globalization.NumberStyles.HexNumber);
+      if (tag.Data == null || tag.Data.Length < 28)
+      {
+        throw new MetratecReaderException("Insufficient tag data for parsing information");
+      }
+      
+      if (!byte.TryParse(tag.Data[0..2], System.Globalization.NumberStyles.HexNumber, null, out var infoFlag))
+      {
+        throw new MetratecReaderException($"Invalid info flag: {tag.Data[0..2]}");
+      }
+      
       info.DSFIDSupported = 0 != (infoFlag & 0x01);
       if (info.DSFIDSupported)
       {
-        info.DSFID = int.Parse(tag.Data![18..20], System.Globalization.NumberStyles.HexNumber);
+        if (tag.Data.Length < 20 || !int.TryParse(tag.Data[18..20], System.Globalization.NumberStyles.HexNumber, null, out var dsfid))
+        {
+          throw new MetratecReaderException($"Invalid DSFID value: {(tag.Data.Length >= 20 ? tag.Data[18..20] : "insufficient data")}");
+        }
+        info.DSFID = dsfid;
       }
       info.AFISupported = 0 != (infoFlag & 0x02);
       if (info.AFISupported)
       {
-        info.AFI = int.Parse(tag.Data![20..22], System.Globalization.NumberStyles.HexNumber);
+        if (tag.Data.Length < 22 || !int.TryParse(tag.Data[20..22], System.Globalization.NumberStyles.HexNumber, null, out var afi))
+        {
+          throw new MetratecReaderException($"Invalid AFI value: {(tag.Data.Length >= 22 ? tag.Data[20..22] : "insufficient data")}");
+        }
+        info.AFI = afi;
       }
       info.VICCMemorySizeSupported = 0 != (infoFlag & 0x04);
       if (info.VICCMemorySizeSupported)
       {
-        info.VICCBlockCount = int.Parse(tag.Data![22..24], System.Globalization.NumberStyles.HexNumber);
-        info.VICCBlockSize = int.Parse(tag.Data![24..26], System.Globalization.NumberStyles.HexNumber) + 1;
+        if (tag.Data.Length < 24 || !int.TryParse(tag.Data[22..24], System.Globalization.NumberStyles.HexNumber, null, out var blockCount))
+        {
+          throw new MetratecReaderException($"Invalid VICC block count: {(tag.Data.Length >= 24 ? tag.Data[22..24] : "insufficient data")}");
+        }
+        if (tag.Data.Length < 26 || !int.TryParse(tag.Data[24..26], System.Globalization.NumberStyles.HexNumber, null, out var blockSize))
+        {
+          throw new MetratecReaderException($"Invalid VICC block size: {(tag.Data.Length >= 26 ? tag.Data[24..26] : "insufficient data")}");
+        }
+        info.VICCBlockCount = blockCount;
+        info.VICCBlockSize = blockSize + 1;
       }
       info.ICReferenceSupported = 0 != (infoFlag & 0x08);
       if (info.ICReferenceSupported)
       {
-        info.ICReference = int.Parse(tag.Data![26..28], System.Globalization.NumberStyles.HexNumber);
+        if (tag.Data.Length < 28 || !int.TryParse(tag.Data[26..28], System.Globalization.NumberStyles.HexNumber, null, out var icReference))
+        {
+          throw new MetratecReaderException($"Invalid IC reference: {(tag.Data.Length >= 28 ? tag.Data[26..28] : "insufficient data")}");
+        }
+        info.ICReference = icReference;
       }
       return info;
     }
@@ -285,7 +317,7 @@ namespace MetraTecDevices
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    public string ReadBlock(int block, string tagId = null!, bool optionFlag = false)
+    public string ReadBlock(int block, string? tagId = null, bool optionFlag = false)
     {
       HfTag tag = SendRequest("REQ", "20", $"{block:X2}", tagId, optionFlag);
       if (tag.HasError)
@@ -308,7 +340,7 @@ namespace MetraTecDevices
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    public string ReadMultipleBlocks(int startBlock, int blocksToRead, string tagId = null!, bool optionFlag = false)
+    public string ReadMultipleBlocks(int startBlock, int blocksToRead, string? tagId = null, bool optionFlag = false)
     {
       if (FirmwareMajorVersion < 3 && blocksToRead > 25)
       {
@@ -343,7 +375,7 @@ namespace MetraTecDevices
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    public void WriteBlock(int block, string data, string tagId = null!, bool optionFlag = false)
+    public void WriteBlock(int block, string data, string? tagId = null, bool optionFlag = false)
     {
       HfTag tag = SendRequest("WRQ", "21", $"{block:X2}{data}", tagId, optionFlag);
       if (tag.HasError)
@@ -365,7 +397,7 @@ namespace MetraTecDevices
     /// <exception cref="MetratecReaderException">
     /// If the reader is not connected or an error occurs, further details in the exception message
     /// </exception>
-    public void WriteMultipleBlocks(int startBlock, string data, string tagId = null!, int blockSize = 4, bool optionFlag = false)
+    public void WriteMultipleBlocks(int startBlock, string data, string? tagId = null, int blockSize = 4, bool optionFlag = false)
     {
       int hexDataSize = blockSize * 2;
       int numberBlocks = (data.Length + hexDataSize - 1) / hexDataSize;
@@ -380,7 +412,12 @@ namespace MetraTecDevices
         {
           try
           {
-            WriteBlock(startBlock + i, data.Substring(startBlock + hexDataSize * i, hexDataSize), tagId, optionFlag);
+            int startIndex = hexDataSize * i;
+            if (startIndex + hexDataSize > data.Length)
+            {
+              throw new MetratecReaderException($"Insufficient data for block {i}: needed {hexDataSize} bytes at index {startIndex}, but data length is {data.Length}");
+            }
+            WriteBlock(startBlock + i, data.Substring(startIndex, hexDataSize), tagId, optionFlag);
           }
           catch (TransponderException)
           {
@@ -498,11 +535,17 @@ namespace MetraTecDevices
     /// <param name="response">a reader response</param>
     protected override void HandleResponse(string response)
     {
+      if (response.Length == 0)
+      {
+        base.HandleResponse(response);
+        return;
+      }
+      
       switch (response[0])
       {
         case 'T':
           // check for special hf events
-          if (response[1] == 'D' || response[1] == 'N')
+          if (response.Length > 1 && (response[1] == 'D' || response[1] == 'N'))
           {
             // TDT or TND
             HandleRequestResponse(response);
@@ -545,7 +588,15 @@ namespace MetraTecDevices
         }
         else if (s.StartsWith("ARP"))
         {
-          CurrentAntennaPort = int.Parse(s[4..]);
+          if (s.Length < 5)
+          {
+            throw new MetratecReaderException($"Invalid antenna port format: {s}");
+          }
+          if (!int.TryParse(s[4..], out var antennaPort))
+          {
+            throw new MetratecReaderException($"Invalid antenna port value: {s[4..]}");
+          }
+          CurrentAntennaPort = antennaPort;
           foreach (HfTag tag in tags)
           {
             tag.Antenna = CurrentAntennaPort;
@@ -588,9 +639,9 @@ namespace MetraTecDevices
           SetCommand("EGC 1 NONE");
         }
       }
-      catch (MetratecReaderException)
+      catch (MetratecReaderException ex)
       {
-        Logger.LogDebug("Inputs events disabled");
+        Logger.LogDebug("Input events could not be enabled: {}", ex.Message);
       }
     }
     /// <summary>
@@ -601,7 +652,7 @@ namespace MetraTecDevices
     {
       if (null == NewRequestResponse)
         return;
-      NewRequestResponseArgs args = new(tag, new DateTime());
+      NewRequestResponseArgs args = new(tag, DateTime.Now);
       ThreadPool.QueueUserWorkItem(o => NewRequestResponse.Invoke(this, args));
     }
     /// <summary>
@@ -659,27 +710,60 @@ namespace MetraTecDevices
       HfTag tag = new(DateTime.Now, CurrentAntennaPort);
       if (answers.Last().StartsWith("ARP"))
       {
-        tag.Antenna = int.Parse(answers.Last()[4..]);
+        string lastAnswer = answers.Last();
+        if (lastAnswer.Length < 5)
+        {
+          throw new MetratecReaderException($"Invalid antenna format: {lastAnswer}");
+        }
+        if (!int.TryParse(lastAnswer[4..], out var antenna))
+        {
+          throw new MetratecReaderException($"Invalid antenna value: {lastAnswer[4..]}");
+        }
+        tag.Antenna = antenna;
         Array.Resize(ref answers, answers.Length - 1);
       }
       if (answers.Last().Equals("NCL"))
       {
-        if (answers[2].Equals("COK"))
+        if (answers.Length > 2 && answers[2].Equals("COK"))
         {
-          if (answers[1].StartsWith("00"))
+          if (answers.Length > 1)
           {
-            tag.Data = answers[1][2..^4];
-          }
-          else
-          {
-            tag.HasError = true;
-            tag.Message = $"TEC {answers[1][2..4]}";
+            if (answers[1].StartsWith("00"))
+            {
+              if (answers[1].Length >= 6)
+              {
+                tag.Data = answers[1][2..^4];
+              }
+              else
+              {
+                Logger.LogWarning("Insufficient data length in response: {}", answers[1]);
+              }
+            }
+            else
+            {
+              tag.HasError = true;
+              if (answers[1].Length >= 4)
+              {
+                tag.Message = $"TEC {answers[1][2..4]}";
+              }
+              else
+              {
+                tag.Message = $"TEC {answers[1]}";
+              }
+            }
           }
         }
         else
         {
           tag.HasError = true;
-          tag.Message = answers[2];
+          if (answers.Length > 2)
+          {
+            tag.Message = answers[2];
+          }
+          else
+          {
+            tag.Message = "Unknown error";
+          }
         }
       }
       else
@@ -770,4 +854,23 @@ namespace MetraTecDevices
   }
 
   #endregion Response Classes
+
+  #region Backward Compatibility Aliases
+
+  /// <summary>
+  /// Backward compatibility alias for MetratecReaderAsciiHf
+  /// </summary>
+  [Obsolete("Use MetratecReaderAsciiHf instead", false)]
+  public class HfReaderAscii : MetratecReaderAsciiHf
+  {
+    /// <summary>
+    /// Create a new instance of the HfReaderAscii class.
+    /// </summary>
+    /// <param name="connection">The connection interface</param>
+    /// <param name="logger">The connection interface</param>
+    /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
+    public HfReaderAscii(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
+  }
+
+  #endregion Backward Compatibility Aliases
 }

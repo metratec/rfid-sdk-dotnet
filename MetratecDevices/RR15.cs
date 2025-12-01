@@ -7,27 +7,27 @@ namespace MetraTecDevices
   /// The RR15 HF RFID Module with integrated antenna and is an easy to use RFID module
   /// which can be integrated into your electronics without big effort 
   /// </summary>
-  public class RR15 : HfReaderAscii
+  public class RR15 : MetratecReaderAsciiHf
   {
     #region Constructor
     /// <summary>Creates a new RR15 instance</summary>
     /// <param name="serialPort">The device IP address</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public RR15(string serialPort, ILogger logger = null!, string id = null!) : base(new SerialInterface(serialPort), logger, id) { }
+    public RR15(string serialPort, ILogger? logger = null, string? id = null) : base(new SerialInterface(serialPort), logger, id) { }
 
     /// <summary>The constructor of the RR15 object</summary>
     /// <param name="ipAddress">The device IP address</param>
     /// <param name="tcpPort">The device TCP port used</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public RR15(string ipAddress, int tcpPort, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
+    public RR15(string ipAddress, int tcpPort, ILogger? logger = null, string? id = null) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
 
     /// <summary>The constructor of the RR15 object</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public RR15(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public RR15(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion
 

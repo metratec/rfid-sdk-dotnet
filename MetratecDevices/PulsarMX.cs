@@ -8,7 +8,7 @@ namespace MetraTecDevices
   /// up to 150 transponders simultaneously in the field. Its main applications are in container tracking,
   /// reading data from sensor tags (e.g. temperature sensors), and on a conveyor belt.
   /// </summary>
-  public class PulsarMX : UhfReaderAscii
+  public class PulsarMX : MetratecReaderAsciiUhf
   {
     #region Constructor
 
@@ -18,21 +18,21 @@ namespace MetraTecDevices
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public PulsarMX(string ipAddress, int tcpPort, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), mode, logger, id) { }
+    public PulsarMX(string ipAddress, int tcpPort, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(new EthernetInterface(ipAddress, tcpPort), mode, logger, id) { }
 
     /// <summary>Creates a new PulsarMX instance</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public PulsarMX(string portName, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), mode, logger, id) { }
+    public PulsarMX(string portName, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), mode, logger, id) { }
 
     /// <summary>Creates a new PulsarMX instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public PulsarMX(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(connection, mode, logger, id) { }
+    public PulsarMX(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(connection, mode, logger, id) { }
 
     #endregion
 

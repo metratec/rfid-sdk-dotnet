@@ -25,7 +25,7 @@ namespace MetraTecDevices
     /// </summary>
     /// <param name="firstSeen"></param>
     /// <param name="antennaPort"></param>
-    public RfidTag(DateTime firstSeen, int antennaPort) : this(null!, firstSeen, antennaPort)
+    public RfidTag(DateTime firstSeen, int antennaPort) : this("", firstSeen, antennaPort)
     {
     }
     /// <summary>

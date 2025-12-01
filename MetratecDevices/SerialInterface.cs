@@ -2,6 +2,7 @@ using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Text;
+using System.Text.RegularExpressions;
 using System.IO.Ports;
 
 namespace CommunicationInterfaces
@@ -9,8 +10,18 @@ namespace CommunicationInterfaces
   /// <summary>
   /// The Serial / COM version of the interface used for communication
   /// </summary>
-  public class SerialInterface : ICommunicationInterface
+  public class SerialInterface : ICommunicationInterface, IDisposable
   {
+    /// <summary>
+    /// Regular expression pattern for validating safe commands
+    /// Allows alphanumeric characters, common punctuation, and whitespace
+    /// </summary>
+    private static readonly Regex SafeCommandPattern = new Regex(@"^[a-zA-Z0-9\s\.,;:!?@#$%&*()\[\]{}+=_\-\/\\|<>""']+$", RegexOptions.Compiled);
+    
+    /// <summary>
+    /// Maximum allowed command length to prevent buffer overflow attacks
+    /// </summary>
+    private const int MaxCommandLength = 1024;
     private SerialPort _SerialSocket = new();
     private int _baudRate;
     private int _dataBits;
@@ -20,6 +31,7 @@ namespace CommunicationInterfaces
     private int _receiveTimeout = 2000;
     private string _newLine = "\u000D";
     private readonly string _port;
+    private bool _disposed = false;
 
     /// <summary>
     /// The constructor
@@ -93,9 +105,9 @@ namespace CommunicationInterfaces
           {
             _SerialSocket.BaudRate = value;
           }
-          catch
+          catch (Exception ex)
           {
-            throw new MetratecCommunicationException("Couldn't set baud rate");
+            throw new MetratecCommunicationException($"Couldn't set baud rate to {value}: {ex.Message}", ex);
           }
         _baudRate = value;
       }
@@ -117,9 +129,9 @@ namespace CommunicationInterfaces
           {
             _SerialSocket.ReadTimeout = value;
           }
-          catch
+          catch (Exception ex)
           {
-            throw new MetratecCommunicationException("Couldn't set baud rate");
+            throw new MetratecCommunicationException($"Couldn't set receive timeout to {value}: {ex.Message}", ex);
           }
         _receiveTimeout = value;
       }
@@ -278,8 +290,41 @@ namespace CommunicationInterfaces
     /// <exception cref="MetratecCommunicationException">
     /// Thrown when the data cannot be sent
     /// </exception>
+    /// <exception cref="ArgumentNullException">
+    /// Thrown when the data parameter is null
+    /// </exception>
+    /// <exception cref="ArgumentException">
+    /// Thrown when the data parameter contains invalid characters or exceeds maximum length
+    /// </exception>
     public void SendCommand(string data)
     {
+      // Validate input to prevent command injection
+      if (data == null)
+      {
+        throw new ArgumentNullException(nameof(data), "Command cannot be null");
+      }
+      
+      if (data.Length > MaxCommandLength)
+      {
+        throw new ArgumentException($"Command length ({data.Length}) exceeds maximum allowed length ({MaxCommandLength})", nameof(data));
+      }
+      
+      // Check for null bytes or other control characters that could be used for injection
+      if (data.Contains('\0'))
+      {
+        throw new ArgumentException("Command contains null bytes which are not allowed", nameof(data));
+      }
+      
+      // Additional validation for control characters (except CR/LF which might be legitimate)
+      for (int i = 0; i < data.Length; i++)
+      {
+        char c = data[i];
+        if (char.IsControl(c) && c != '\r' && c != '\n' && c != '\t')
+        {
+          throw new ArgumentException($"Command contains invalid control character at position {i}", nameof(data));
+        }
+      }
+      
       try
       {
         _SerialSocket.DiscardOutBuffer();
@@ -358,6 +403,44 @@ namespace CommunicationInterfaces
         throw new MetratecCommunicationException(e.Message, e);
       }
     }
+
+    #region IDisposable Implementation
+
+    /// <summary>
+    /// Releases all resources used by the SerialInterface
+    /// </summary>
+    public void Dispose()
+    {
+      Dispose(true);
+      GC.SuppressFinalize(this);
+    }
+
+    /// <summary>
+    /// Releases the unmanaged resources used by the SerialInterface and optionally releases the managed resources
+    /// </summary>
+    /// <param name="disposing">true to release both managed and unmanaged resources; false to release only unmanaged resources</param>
+    protected virtual void Dispose(bool disposing)
+    {
+      if (!_disposed)
+      {
+        if (disposing)
+        {
+          // Dispose managed resources
+          Disconnect();
+        }
+        _disposed = true;
+      }
+    }
+
+    /// <summary>
+    /// Finalizer
+    /// </summary>
+    ~SerialInterface()
+    {
+      Dispose(false);
+    }
+
+    #endregion
 
   }
 }

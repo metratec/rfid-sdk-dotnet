@@ -11,7 +11,7 @@ namespace MetraTecDevices
   /// up to 150 transponders simultaneously in the field. Its main applications are in container tracking,
   /// reading data from sensor tags (e.g. temperature sensors), and on a conveyor belt.
   /// </summary>
-  public class DwarfG2 : UhfReaderAscii
+  public class DwarfG2 : MetratecReaderAsciiUhf
   {
     #region Constructor
 
@@ -21,21 +21,21 @@ namespace MetraTecDevices
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2(string ipAddress, int tcpPort, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), mode, logger, id) { }
+    public DwarfG2(string ipAddress, int tcpPort, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(new EthernetInterface(ipAddress, tcpPort), mode, logger, id) { }
 
     /// <summary>Creates a new DwarfG2 instance</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2(string portName, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), mode, logger, id) { }
+    public DwarfG2(string portName, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), mode, logger, id) { }
 
     /// <summary>Creates a new DwarfG2 instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="mode">The rfid standard to use. Defaults to ETSI</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger logger = null!, string id = null!) : base(connection, mode, logger, id) { }
+    public DwarfG2(ICommunicationInterface connection, REGION mode = REGION.ETS, ILogger? logger = null, string? id = null) : base(connection, mode, logger, id) { }
 
     #endregion
 
@@ -72,13 +72,13 @@ namespace MetraTecDevices
     /// <param name="serialPort">The device IP address</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2_v2(string serialPort, ILogger logger = null!, string id = null!) : base(new SerialInterface(serialPort), logger, id) { }
+    public DwarfG2_v2(string serialPort, ILogger? logger = null, string? id = null) : base(new SerialInterface(serialPort), logger, id) { }
 
     /// <summary>Creates a new DwarfG2_v2 instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2_v2(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public DwarfG2_v2(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion
 
@@ -118,13 +118,13 @@ namespace MetraTecDevices
     /// <param name="serialPort">The device IP address</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2V2(string serialPort, ILogger logger = null!, string id = null!) : base(new SerialInterface(serialPort), logger, id) { }
+    public DwarfG2V2(string serialPort, ILogger? logger = null, string? id = null) : base(new SerialInterface(serialPort), logger, id) { }
 
     /// <summary>Creates a new DwarfG2V2 instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2V2(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public DwarfG2V2(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion
   }
@@ -146,13 +146,13 @@ namespace MetraTecDevices
     /// <param name="serialPort">The device IP address</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2_XR_v2(string serialPort, ILogger logger = null!, string id = null!) : base(new SerialInterface(serialPort), logger, id) { }
+    public DwarfG2_XR_v2(string serialPort, ILogger? logger = null, string? id = null) : base(new SerialInterface(serialPort), logger, id) { }
 
     /// <summary>Creates a new DwarfG2_XR_v2 instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2_XR_v2(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public DwarfG2_XR_v2(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion
 
@@ -190,13 +190,13 @@ namespace MetraTecDevices
     /// <param name="serialPort">The device IP address</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2_Mini_v2(string serialPort, ILogger logger = null!, string id = null!) : base(new SerialInterface(serialPort), logger, id) { }
+    public DwarfG2_Mini_v2(string serialPort, ILogger? logger = null, string? id = null) : base(new SerialInterface(serialPort), logger, id) { }
 
     /// <summary>Creates a new DwarfG2_Mini_v2 instance</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public DwarfG2_Mini_v2(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public DwarfG2_Mini_v2(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion
 

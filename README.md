@@ -1,6 +1,6 @@
 # Metratec Device SDK
 
-Metratec Devices SDK for .net 6.0 (core)
+Metratec Devices SDK for .net 8.0 LTS
 
 ## Install the library
 
@@ -19,9 +19,9 @@ Or you can alternatively edit your `.csproj` file:
     <HintPath>path\to\MetratecDevices.dll</HintPath>
   </Reference>
   <!-- For serial connection -->
-  <PackageReference Include="System.IO.Ports" Version="7.0.0" />
+  <PackageReference Include="System.IO.Ports" Version="8.0.0" />
   <!-- For logging -->
-  <PackageReference Include="Microsoft.Extensions.Logging.Abstraction" Version="7.0.0" />
+  <PackageReference Include="Microsoft.Extensions.Logging.Abstraction" Version="8.0.0" />
 </ItemGroup>
 ```
 

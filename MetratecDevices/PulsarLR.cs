@@ -24,19 +24,19 @@ namespace MetraTecDevices
     /// <param name="tcpPort">The device TCP port used</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public PulsarLR(string ipAddress, int tcpPort, ILogger logger = null!, string id = null!) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
+    public PulsarLR(string ipAddress, int tcpPort, ILogger? logger = null, string? id = null) : base(new EthernetInterface(ipAddress, tcpPort), logger, id) { }
 
     /// <summary>The constructor of the PulsarLR object</summary>
     /// <param name="portName">The device hardware information structure needed to connect to the device</param>
     /// <param name="logger">the logger</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public PulsarLR(string portName, ILogger logger = null!, string id = null!) : base(new SerialInterface(portName), logger, id) { }
+    public PulsarLR(string portName, ILogger? logger = null, string? id = null) : base(new SerialInterface(portName), logger, id) { }
 
     /// <summary>The constructor of the PulsarLR object</summary>
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public PulsarLR(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public PulsarLR(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion
 

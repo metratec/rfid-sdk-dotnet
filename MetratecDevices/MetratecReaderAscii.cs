@@ -47,7 +47,7 @@ namespace MetraTecDevices
     /// <param name="connection">The connection interface</param>
     /// <param name="logger">The connection interface</param>
     /// <param name="id">The reader id. This is purely for identification within the software and can be anything.</param>
-    public MetratecReaderAscii(ICommunicationInterface connection, ILogger logger = null!, string id = null!) : base(connection, logger, id) { }
+    public MetratecReaderAscii(ICommunicationInterface connection, ILogger? logger = null, string? id = null) : base(connection, logger, id) { }
 
     #endregion Constructor
 
@@ -256,6 +256,12 @@ namespace MetraTecDevices
     protected override void HandleResponse(string response)
     {
       // check for events
+      if (response.Length == 0)
+      {
+        base.HandleResponse(response);
+        return;
+      }
+      
       switch (response[0])
       {
         case 'H':
@@ -265,20 +271,30 @@ namespace MetraTecDevices
           }
           break;
         case 'I':
-          switch (response[1])
+          if (response.Length > 1)
           {
-            case 'V': // Inventory: IVF 00
-              if (response[2] == 'F')
-              {
-                HandleInventoryResponse(response);
+            switch (response[1])
+            {
+              case 'V': // Inventory: IVF 00
+                if (response.Length > 2 && response[2] == 'F')
+                {
+                  HandleInventoryResponse(response);
+                  return;
+                }
+                break;
+              case 'N':
+                // input event: IN0 IN1 
+                bool state = response.Contains("HI!");
+                if (response.Length > 2 && int.TryParse(response[2].ToString(), out var inputPin))
+                {
+                  FireInputChangeEvent(inputPin, state);
+                }
+                else
+                {
+                  Logger.LogWarning("Invalid input pin format in response: {}", response);
+                }
                 return;
-              }
-              break;
-            case 'N':
-              // input event: IN0 IN1 
-              bool state = response.Contains("HI!");
-              FireInputChangeEvent(int.Parse(response[2].ToString()), state);
-              return;
+            }
           }
           break;
       }
@@ -450,6 +466,10 @@ namespace MetraTecDevices
     /// <returns>the MetratecReaderException</returns>
     protected MetratecReaderException ParseErrorResponse(String response)
     {
+      if (response.Length < 3)
+      {
+        return new MetratecReaderException($"Invalid error response format: {response}");
+      }
       switch (response[0..3])
       {
         // class hardware errors - produce exceptions / events in async cases
@@ -473,30 +493,48 @@ namespace MetraTecDevices
           return new MetratecReaderException("Hardware error detected: UART Receive Error. Please check hardware or call support");
         // class parser / dll error - produce exceptions / events in async cases
         case "UCO":
-          return new MetratecReaderException("Command not supported");
-        case "CCE":
+          return new MetratecReaderException("Command not supported (UCO)");
         case "DNS":
+          return new MetratecReaderException($"Did Not Sleep ({response})");
         case "EDX":
+          return new MetratecReaderException($"Error Decimal value eXpected ({response})");
         case "EHX":
-        case "NCM":
+          return new MetratecReaderException($"Error Hex value eXpected ({response})");
         case "NOR":
+          return new MetratecReaderException($"Number Out of Range ({response})");
         case "NOS":
+          return new MetratecReaderException($"Not Supported ({response})");
         case "NRF":
+          return new MetratecReaderException($"No RF-Field active ({response})");
         case "NSS":
+          return new MetratecReaderException($"No Standard selected ({response})");
         case "UPA":
+          return new MetratecReaderException($"Unknown PArameter ({response})");
         case "WDL":
-          return new MetratecReaderException($"Parser error detected - if using direct mode please check string sent, otherwise contact support. Error message: {response}");
+          return new MetratecReaderException($"Wrong Data Length ({response})");
         // class tag answer / communication problems - are reported as is
         case "ACE":
+          return new MetratecReaderException($"ACcessError ({response})");
+        case "CCE":
+          return new MetratecReaderException($"Communication CRC Error ({response})");
         case "CER":
+          return new MetratecReaderException($"CRC error ({response})");
         case "FLE":
+          return new MetratecReaderException($"Fifo Length Error  ({response})");
         case "HBE":
+          return new MetratecReaderException($"HeaderBit error ({response})");
         case "PDE":
+          return new MetratecReaderException($"Preamble Detect Error ({response})");
         case "RDL":
+          return new MetratecReaderException($"Read Data too Long  ({response})");
         case "RXE":
+          return new MetratecReaderException($"Response length not as eXpected Error ({response})");
         case "TCE":
+          return new MetratecReaderException($"Tag Communication Error ({response})");
         case "TMT":
+          return new MetratecReaderException($"Too Many Tags ({response})");
         case "TOE":
+          return new MetratecReaderException($"TimeOut Error ({response})");
         case "TOR":
         default:
           //PLE and SRT can be found anywhere in the string - the others are to be reported as they are
@@ -548,14 +586,31 @@ namespace MetraTecDevices
       if (response.Length > 3)
       {
         FirmwareName = response[..^4].Replace(" ", "");
-        FirmwareMajorVersion = int.Parse(response.Substring(response.Length - 4, 2));
-        FirmwareMinorVersion = int.Parse(response.Substring(response.Length - 2, 2));
+        if (response.Length < 4)
+        {
+          throw new MetratecReaderException($"Invalid firmware response length: {response}");
+        }
+        if (!int.TryParse(response.Substring(response.Length - 4, 2), out var firmwareMajor) ||
+            !int.TryParse(response.Substring(response.Length - 2, 2), out var firmwareMinor))
+        {
+          throw new MetratecReaderException($"Invalid firmware version format: {response}");
+        }
+        FirmwareMajorVersion = firmwareMajor;
+        FirmwareMinorVersion = firmwareMinor;
         FirmwareVersion = $"{FirmwareMajorVersion}.{FirmwareMinorVersion}";
 
         response = ReadHardware();
         HardwareName = response[..^4];
-        HardwareVersion = int.Parse(response.Substring(response.Length - 4, 2)) + "." +
-                          int.Parse(response.Substring(response.Length - 2, 2));
+        if (response.Length < 4)
+        {
+          throw new MetratecReaderException($"Invalid hardware response length: {response}");
+        }
+        if (!int.TryParse(response.Substring(response.Length - 4, 2), out var hardwareMajor) ||
+            !int.TryParse(response.Substring(response.Length - 2, 2), out var hardwareMinor))
+        {
+          throw new MetratecReaderException($"Invalid hardware version format: {response}");
+        }
+        HardwareVersion = hardwareMajor + "." + hardwareMinor;
       }
       else
       {
@@ -564,11 +619,22 @@ namespace MetraTecDevices
         {
           // return response.Substring(0, response.Length - 8) + response.Substring(response.Length - 4, 4);
           FirmwareName = response[..^8].Replace(" ", "");
-          FirmwareMajorVersion = int.Parse(response.Substring(response.Length - 4, 2));
-          FirmwareMinorVersion = int.Parse(response.Substring(response.Length - 2, 2));
+          if (response.Length < 8)
+          {
+            throw new MetratecReaderException($"Invalid revision response length: {response}");
+          }
+          if (!int.TryParse(response.Substring(response.Length - 4, 2), out var revFirmwareMajor) ||
+              !int.TryParse(response.Substring(response.Length - 2, 2), out var revFirmwareMinor) ||
+              !int.TryParse(response.Substring(response.Length - 8, 2), out var revHardwareMajor) ||
+              !int.TryParse(response.Substring(response.Length - 6, 2), out var revHardwareMinor))
+          {
+            throw new MetratecReaderException($"Invalid revision format: {response}");
+          }
+          FirmwareMajorVersion = revFirmwareMajor;
+          FirmwareMinorVersion = revFirmwareMinor;
           FirmwareVersion = $"{FirmwareMajorVersion}.{FirmwareMinorVersion}";
           HardwareName = response[..^8];
-          HardwareVersion = $"{response.Substring(response.Length - 8, 2)}.{response.Substring(response.Length - 6, 2)}";
+          HardwareVersion = $"{revHardwareMajor}.{revHardwareMinor}";
         }
         else
         {
@@ -621,7 +687,7 @@ namespace MetraTecDevices
     {
       if (null == InputChanged)
         return;
-      InputChangedEventArgs args = new(inputPin, isHigh, new DateTime());
+      InputChangedEventArgs args = new(inputPin, isHigh, DateTime.Now);
       ThreadPool.QueueUserWorkItem(o => InputChanged.Invoke(this, args));
     }
     /// <summary>
@@ -693,6 +759,10 @@ namespace MetraTecDevices
     {
       if (toCheck.Length < 4)
         return false;
+      if (toCheck.Length < 4)
+      {
+        return false;
+      }
       return toCheck.Substring(toCheck.Length - 4, 4) == ComputeCRC(toCheck[..^4]);
     }
   }
