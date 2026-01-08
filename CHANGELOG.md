@@ -1,5 +1,9 @@
 # Changelog
 
+## 3.4.1
+
+* nn error that occurred during the preparation process when reconnecting has been fixed
+
 ## 3.4
 
 * use .Net 8

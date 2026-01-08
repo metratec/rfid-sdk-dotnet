@@ -13,7 +13,7 @@
 
   <PropertyGroup>
     <TargetFramework>net8.0</TargetFramework>
-    <VersionPrefix>3.4.0</VersionPrefix>
+    <VersionPrefix>3.4.1</VersionPrefix>
     <VersionSuffix></VersionSuffix>
     <Nullable>enable</Nullable>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
@@ -22,7 +22,7 @@
     <Company>Metratec GmbH</Company>
     <Product>metraTecDevices</Product>
     <Copyright>Copyright ©  2024</Copyright>
-    <FileVersion>3.4.0</FileVersion>
+    <FileVersion>3.4.1</FileVersion>
     <GenerateDocumentationFile>True</GenerateDocumentationFile>
     <PackageReadmeFile>README.md</PackageReadmeFile>
   </PropertyGroup>
