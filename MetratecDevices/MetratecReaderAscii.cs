@@ -402,9 +402,15 @@ namespace MetraTecDevices
     protected override void Disconnect(string statusMessage)
     {
       if (Connected)
-      {
-        EnableCrcCheck(false);
-        EnableEndOfFrame(false);
+      { 
+        try
+        {
+          EnableCrcCheck(false);
+          EnableEndOfFrame(false);
+        } catch (Exception)
+        {
+          // Ignore
+        }
       }
       base.Disconnect(statusMessage);
     }

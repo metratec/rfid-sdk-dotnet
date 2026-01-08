@@ -594,7 +594,7 @@ namespace MetraTecDevices
       catch (Exception ex)
       {
         Logger.LogDebug("Error during preparing reader - {}", ex.Message);
-        Disconnect($"Error during preparing reader - Maybe wrong reader? ({FirmwareName ?? ""} {FirmwareVersion ?? ""})");
+        _connection.Disconnect();
       }
     }
     internal void Work()
